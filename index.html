@@ -45,10 +45,10 @@
       const refreshData = async () => {
         setLoadingData(true);
         const [pr, ur, tr, br] = await Promise.all([
-          // [수정 2] 상점 상품 불러올 때 생성일(created_at) 고정 정렬로 구매 후 순서 바뀜 방지
           supabase.from('products').select('*').eq('active', true).order('created_at', { ascending: true }),
           supabase.from('profiles').select('*').order('created_at'),
-          supabase.from('transactions').select('*').order('created_at', {ascending:false}).limit(500),
+          // [수정] 트랜잭션(활동 로그)을 불러올 때 명확하게 최신순(created_at 내림차순)으로 고정
+          supabase.from('transactions').select('*').order('created_at', { ascending: false }).limit(500),
           supabase.from('battles').select('*').order('battle_date', {ascending:false})
         ]);
         const err = pr.error || ur.error || tr.error || br.error;
@@ -101,7 +101,6 @@
         setTimeout(() => setToastMessage(null), 3000);
       };
 
-      // [수정] 자율 회원가입 & 자유 로그인 처리 (모든 양식 제한 제거)
       const handleAuthSubmit = async (e) => {
         e.preventDefault();
         const username = authForm.username.trim();
@@ -147,7 +146,6 @@
         setSelectedItemForUse(null); setTargetUserForUse(''); await refreshData(); showToast('아이템 사용 완료!', 'success');
       };
 
-      // [수정 1] 슈퍼방어권 대상 추출 로직 보강 (나를 공격 대상으로 지정하여 공격권을 사용한 회원 목록을 정확히 감지)
       const getAttackersTargetingMe = () => {
         if (!currentUser) return [];
         const attackerNames = transactions
@@ -270,7 +268,8 @@
             {activeTab === 'feed' && (
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-3">
                 <h3 className="font-bold text-cyan-400 mb-4">📢 활동 실시간 공지</h3>
-                {[...transactions].sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0)).map(t => (
+                {/* [수정] 렌더링 시 타임스탬프 기준으로 엄격하게 내림차순(최신순) 정렬 보장 */}
+                {[...transactions].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).map(t => (
                   <div key={t.id} className="p-3 bg-slate-950 rounded-xl text-xs flex justify-between">
                     <span><strong className="text-cyan-400">{t.userName}</strong> 님이 [{t.itemTitle}] {t.used ? `사용 완료 (대상: ${t.usedTarget || '없음'})` : '구매함'}</span>
                     <span className="text-slate-500">{t.used ? t.useDate || t.date : t.date}</span>
@@ -397,7 +396,6 @@
               <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl max-w-sm w-full space-y-4">
                 <h3 className="font-bold text-slate-100">{selectedItemForUse.itemTitle} 사용</h3>
                 
-                {/* 공격권 / 신청권 사용 시 회원 목록 선택 */}
                 {(selectedItemForUse.itemTitle.includes('신청권') || selectedItemForUse.itemTitle.includes('공격권')) && (
                   <select value={targetUserForUse} onChange={(e) => setTargetUserForUse(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-slate-100">
                     <option value="">-- 대상 선택 --</option>
@@ -407,7 +405,6 @@
                   </select>
                 )}
 
-                {/* 방어권 사용 시 나를 지정한 공격자 선택 (수정됨) */}
                 {selectedItemForUse.itemTitle.includes('방어권') && (
                   <select value={targetUserForUse} onChange={(e) => setTargetUserForUse(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-slate-100">
                     <option value="">-- 나를 지목한 공격자 선택 --</option>
