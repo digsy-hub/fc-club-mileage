@@ -13,8 +13,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <!-- Babel Compiler for JSX -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     body { margin: 0; padding: 0; background-color: #020617; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -40,14 +38,15 @@
       const [loadingData, setLoadingData] = useState(true);
 
       const mapProfile = p => ({ id:p.id, username:p.username, name:p.display_name, role:p.role, points:p.points });
-      const mapProduct = p => ({ id:p.id, title:p.title, category:p.category, price:p.price, stock:p.stock, icon:p.icon, description:p.description, tag:p.tag });
+      const mapProduct = p => ({ id:p.id, title:p.title, category:p.category, price:p.price, stock:p.stock, icon:p.icon, description:p.description, tag:p.tag, createdAt: p.created_at });
       const mapTransaction = t => ({ id:t.id, userId:t.user_id, userName:t.user_name, type:t.type, amount:t.amount, itemTitle:t.item_title, status:t.status, used:t.used, usedTarget:t.used_target, useDate:t.use_date ? new Date(t.use_date).toLocaleString('ko-KR') : '', date:new Date(t.created_at).toLocaleString('ko-KR'), timestamp:new Date(t.created_at).getTime() });
       const mapBattle = b => ({ id:b.id, challenger:b.challenger, defender:b.defender, battleDate:b.battle_date, status:b.status, winner:b.winner, loser:b.loser, note:b.note });
 
       const refreshData = async () => {
         setLoadingData(true);
         const [pr, ur, tr, br] = await Promise.all([
-          supabase.from('products').select('*').eq('active', true).order('created_at'),
+          // [수정 2] 상점 상품 불러올 때 생성일(created_at) 고정 정렬로 구매 후 순서 바뀜 방지
+          supabase.from('products').select('*').eq('active', true).order('created_at', { ascending: true }),
           supabase.from('profiles').select('*').order('created_at'),
           supabase.from('transactions').select('*').order('created_at', {ascending:false}).limit(500),
           supabase.from('battles').select('*').order('battle_date', {ascending:false})
@@ -102,6 +101,7 @@
         setTimeout(() => setToastMessage(null), 3000);
       };
 
+      // [수정] 자율 회원가입 & 자유 로그인 처리 (모든 양식 제한 제거)
       const handleAuthSubmit = async (e) => {
         e.preventDefault();
         const username = authForm.username.trim();
@@ -127,6 +127,7 @@
           setAuthForm({ username:'', name:'', password:'' }); showToast('가입 완료! 1,000pt가 지급되었습니다.', 'success');
         }
       };
+
       const handleLogout = async () => { await supabase.auth.signOut(); setCurrentUser(null); setActiveTab('store'); showToast('로그아웃 되었습니다.', 'info'); };
 
       const handlePurchase = async () => {
@@ -146,40 +147,14 @@
         setSelectedItemForUse(null); setTargetUserForUse(''); await refreshData(); showToast('아이템 사용 완료!', 'success');
       };
 
+      // [수정 1] 슈퍼방어권 대상 추출 로직 보강 (나를 공격 대상으로 지정하여 공격권을 사용한 회원 목록을 정확히 감지)
       const getAttackersTargetingMe = () => {
         if (!currentUser) return [];
-        const myNameTag = `대상: ${currentUser.name}`;
         const attackerNames = transactions
           .filter(t => t.used && (t.itemTitle.includes('신청권') || t.itemTitle.includes('공격권')))
-          .filter(t => t.itemTitle.includes(myNameTag))
+          .filter(t => t.usedTarget === currentUser.name || t.itemTitle.includes(`대상: ${currentUser.name}`))
           .map(t => t.userName);
         return [...new Set(attackerNames)];
-      };
-
-      // ADMIN HANDLERS
-      const handleGrantPoints = async (e) => {
-        e.preventDefault();
-        const amountNum = parseInt(adminGrantForm.amount, 10);
-        if (!Number.isInteger(amountNum) || amountNum === 0) { showToast('올바른 마일리지 금액을 입력해주세요.', 'error'); return; }
-        const { error } = await supabase.rpc('admin_adjust_points', { p_user_id: adminGrantForm.targetUserId, p_amount: amountNum, p_reason: adminGrantForm.reason || (amountNum > 0 ? '관리자 마일리지 지급' : '관리자 마일리지 차감') });
-        if (error) { showToast('마일리지 변경 실패: ' + error.message, 'error'); return; }
-        setAdminGrantForm({ targetUserId: '', amount: '', reason: '' }); await refreshData(); showToast('마일리지 변경 완료!', 'success');
-      };
-
-      const handleAddItem = async (e) => {
-        e.preventDefault();
-        if (!newItemForm.title || !newItemForm.price) return;
-        const { error } = await supabase.rpc('admin_add_product', { p_title:newItemForm.title, p_category:newItemForm.category, p_price:parseInt(newItemForm.price,10), p_stock:parseInt(newItemForm.stock,10)||99, p_icon:newItemForm.icon||'🎁', p_description:newItemForm.description||'', p_tag:newItemForm.tag||'신규' });
-        if (error) { showToast('상품 등록 실패: '+error.message, 'error'); return; }
-        setShowAddItemModal(false); setNewItemForm({ title:'', category:'게임 아이템', price:'', stock:'', icon:'🎁', description:'', tag:'' }); await refreshData(); showToast('새 상품이 등록되었습니다!', 'success');
-      };
-
-      const handleAddBattle = async (e) => {
-        e.preventDefault();
-        if (!newBattleForm.challenger || !newBattleForm.defender) return;
-        const { error } = await supabase.rpc('admin_add_battle', { p_challenger:newBattleForm.challenger, p_defender:newBattleForm.defender, p_battle_date:newBattleForm.battleDate || new Date().toISOString().slice(0,10), p_note:newBattleForm.note || '교체혈전 경기' });
-        if (error) { showToast('일정 등록 실패: '+error.message, 'error'); return; }
-        setShowAddBattleModal(false); setNewBattleForm({ challenger:'', defender:'', battleDate:'', note:'' }); await refreshData(); showToast('교체혈전 일정이 등록되었습니다!', 'success');
       };
 
       const filteredItems = items.filter(item => {
@@ -297,7 +272,7 @@
                 <h3 className="font-bold text-cyan-400 mb-4">📢 활동 실시간 공지</h3>
                 {[...transactions].sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0)).map(t => (
                   <div key={t.id} className="p-3 bg-slate-950 rounded-xl text-xs flex justify-between">
-                    <span><strong className="text-cyan-400">{t.userName}</strong> 님이 [{t.itemTitle}] {t.used ? '아이템을 사용했습니다!' : '구매함'}</span>
+                    <span><strong className="text-cyan-400">{t.userName}</strong> 님이 [{t.itemTitle}] {t.used ? `사용 완료 (대상: ${t.usedTarget || '없음'})` : '구매함'}</span>
                     <span className="text-slate-500">{t.used ? t.useDate || t.date : t.date}</span>
                   </div>
                 ))}
@@ -320,7 +295,6 @@
               </div>
             )}
 
-            {/* ADMIN DASHBOARD WITH MILEAGE GRANT PANEL */}
             {activeTab === 'admin' && currentUser?.role === 'admin' && (
               <div className="space-y-6">
                 <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 space-y-4">
@@ -330,10 +304,16 @@
                     <button onClick={() => setShowAddItemModal(true)} className="px-4 py-2 rounded-xl bg-purple-600 text-white font-bold text-xs">+ 상점 상품 추가</button>
                   </div>
 
-                  {/* 마일리지 수동 지급/차감 제어 패널 */}
                   <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3 mt-4">
                     <h4 className="font-bold text-cyan-400 text-xs">⚡ 클럽원 마일리지 수동 지급 / 차감</h4>
-                    <form onSubmit={handleGrantPoints} className="space-y-2 text-xs">
+                    <form onSubmit={async (e) => {
+                      e.preventDefault();
+                      const amountNum = parseInt(adminGrantForm.amount, 10);
+                      if (!Number.isInteger(amountNum) || amountNum === 0) { showToast('올바른 마일리지 금액을 입력해주세요.', 'error'); return; }
+                      const { error } = await supabase.rpc('admin_adjust_points', { p_user_id: adminGrantForm.targetUserId, p_amount: amountNum, p_reason: adminGrantForm.reason || (amountNum > 0 ? '관리자 마일리지 지급' : '관리자 마일리지 차감') });
+                      if (error) { showToast('마일리지 변경 실패: ' + error.message, 'error'); return; }
+                      setAdminGrantForm({ targetUserId: '', amount: '', reason: '' }); await refreshData(); showToast('마일리지 변경 완료!', 'success');
+                    }} className="space-y-2 text-xs">
                       <select
                         value={adminGrantForm.targetUserId}
                         onChange={e => setAdminGrantForm({...adminGrantForm, targetUserId: e.target.value})}
@@ -416,6 +396,8 @@
             <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50">
               <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl max-w-sm w-full space-y-4">
                 <h3 className="font-bold text-slate-100">{selectedItemForUse.itemTitle} 사용</h3>
+                
+                {/* 공격권 / 신청권 사용 시 회원 목록 선택 */}
                 {(selectedItemForUse.itemTitle.includes('신청권') || selectedItemForUse.itemTitle.includes('공격권')) && (
                   <select value={targetUserForUse} onChange={(e) => setTargetUserForUse(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-slate-100">
                     <option value="">-- 대상 선택 --</option>
@@ -424,14 +406,21 @@
                     ))}
                   </select>
                 )}
+
+                {/* 방어권 사용 시 나를 지정한 공격자 선택 (수정됨) */}
                 {selectedItemForUse.itemTitle.includes('방어권') && (
                   <select value={targetUserForUse} onChange={(e) => setTargetUserForUse(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-slate-100">
                     <option value="">-- 나를 지목한 공격자 선택 --</option>
-                    {getAttackersTargetingMe().map(name => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
+                    {getAttackersTargetingMe().length > 0 ? (
+                      getAttackersTargetingMe().map(name => (
+                        <option key={name} value={name}>{name}</option>
+                      ))
+                    ) : (
+                      <option value="" disabled>현재 나를 공격한 회원이 없습니다</option>
+                    )}
                   </select>
                 )}
+                
                 <button onClick={handleUseItem} className="w-full py-3 bg-amber-400 text-slate-950 font-bold rounded-xl text-xs">⚡ 아이템 사용하기</button>
                 <button onClick={() => { setSelectedItemForUse(null); setTargetUserForUse(''); }} className="w-full text-xs text-slate-500">취소</button>
               </div>
@@ -443,7 +432,13 @@
             <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50">
               <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl max-w-sm w-full space-y-3 text-xs">
                 <h3 className="font-bold text-rose-400 text-sm">교체혈전 일정 추가</h3>
-                <form onSubmit={handleAddBattle} className="space-y-3">
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!newBattleForm.challenger || !newBattleForm.defender) return;
+                  const { error } = await supabase.rpc('admin_add_battle', { p_challenger:newBattleForm.challenger, p_defender:newBattleForm.defender, p_battle_date:newBattleForm.battleDate || new Date().toISOString().slice(0,10), p_note:newBattleForm.note || '교체혈전 경기' });
+                  if (error) { showToast('일정 등록 실패: '+error.message, 'error'); return; }
+                  setShowAddBattleModal(false); setNewBattleForm({ challenger:'', defender:'', battleDate:'', note:'' }); await refreshData(); showToast('교체혈전 일정이 등록되었습니다!', 'success');
+                }} className="space-y-3">
                   <input type="text" placeholder="도전자" required value={newBattleForm.challenger} onChange={e => setNewBattleForm({...newBattleForm, challenger: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl" />
                   <input type="text" placeholder="방어자" required value={newBattleForm.defender} onChange={e => setNewBattleForm({...newBattleForm, defender: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl" />
                   <input type="date" required value={newBattleForm.battleDate} onChange={e => setNewBattleForm({...newBattleForm, battleDate: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl" />
@@ -459,7 +454,13 @@
             <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50">
               <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl max-w-sm w-full space-y-3 text-xs">
                 <h3 className="font-bold text-purple-400 text-sm">신규 상품 추가</h3>
-                <form onSubmit={handleAddItem} className="space-y-3">
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!newItemForm.title || !newItemForm.price) return;
+                  const { error } = await supabase.rpc('admin_add_product', { p_title:newItemForm.title, p_category:newItemForm.category, p_price:parseInt(newItemForm.price,10), p_stock:parseInt(newItemForm.stock,10)||99, p_icon:newItemForm.icon||'🎁', p_description:newItemForm.description||'', p_tag:newItemForm.tag||'신규' });
+                  if (error) { showToast('상품 등록 실패: '+error.message, 'error'); return; }
+                  setShowAddItemModal(false); setNewItemForm({ title:'', category:'게임 아이템', price:'', stock:'', icon:'🎁', description:'', tag:'' }); await refreshData(); showToast('새 상품이 등록되었습니다!', 'success');
+                }} className="space-y-3">
                   <input type="text" placeholder="상품명" required value={newItemForm.title} onChange={e => setNewItemForm({...newItemForm, title: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl" />
                   <input type="number" placeholder="필요 마일리지" required value={newItemForm.price} onChange={e => setNewItemForm({...newItemForm, price: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl" />
                   <textarea placeholder="설명" value={newItemForm.description} onChange={e => setNewItemForm({...newItemForm, description: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl" />
