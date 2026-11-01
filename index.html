@@ -104,9 +104,11 @@
 
       const handleAuthSubmit = async (e) => {
         e.preventDefault();
-        const username = authForm.username.trim().toLowerCase();
-        if (!/^[a-z0-9_.-]{3,24}$/.test(username)) { showToast('아이디는 영문 소문자/숫자 및 ._- 기호로 3~24자 입력해 주세요.', 'error'); return; }
+        const username = authForm.username.trim();
+        if (!username) { showToast('아이디를 입력해 주세요.', 'error'); return; }
+
         const email = `${username}@fc-club-mileage.invalid`;
+        
         if (authMode === 'login') {
           const { error } = await supabase.auth.signInWithPassword({ email, password: authForm.password });
           if (error) { showToast('로그인 실패: 아이디 또는 비밀번호를 확인해 주세요.', 'error'); return; }
@@ -114,14 +116,17 @@
           await loadCurrentProfile(user.id); await refreshData(); setShowAuthModal(false);
           setAuthForm({ username:'', name:'', password:'' }); showToast('로그인되었습니다.', 'success');
         } else {
-          if (!authForm.name.trim() || !authForm.password || authForm.password.length < 8) { showToast('이름을 입력하고 비밀번호는 8자 이상으로 설정해 주세요.', 'error'); return; }
-          const { data, error } = await supabase.auth.signUp({ email, password:authForm.password, options:{ data:{ username, display_name:authForm.name.trim() } } });
+          if (!authForm.name.trim()) { showToast('이름을 입력해 주세요.', 'error'); return; }
+          const { data, error } = await supabase.auth.signUp({ 
+            email, 
+            password: authForm.password, 
+            options:{ data:{ username, display_name:authForm.name.trim() } } 
+          });
           if (error) { showToast('회원가입 실패: ' + error.message, 'error'); return; }
           await loadCurrentProfile(data.user.id); await refreshData(); setShowAuthModal(false);
           setAuthForm({ username:'', name:'', password:'' }); showToast('가입 완료! 1,000pt가 지급되었습니다.', 'success');
         }
       };
-
       const handleLogout = async () => { await supabase.auth.signOut(); setCurrentUser(null); setActiveTab('store'); showToast('로그아웃 되었습니다.', 'info'); };
 
       const handlePurchase = async () => {
