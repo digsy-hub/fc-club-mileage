@@ -38,15 +38,33 @@
       const [loadingData, setLoadingData] = useState(true);
 
       const mapProfile = p => ({ id:p.id, username:p.username, name:p.display_name, role:p.role, points:p.points });
-      const mapProduct = p => ({ id:p.id, title:p.title, category:p.category, price:p.price, stock:p.stock, icon:p.icon, description:p.description, tag:p.tag, createdAt: p.created_at });
-      const mapTransaction = t => ({ id:t.id, userId:t.user_id, userName:t.user_name, type:t.type, amount:t.amount, itemTitle:t.item_title, status:t.status, used:t.used, usedTarget:t.used_target, useDate:t.use_date ? new Date(t.use_date).toLocaleString('ko-KR') : '', date:new Date(t.created_at).toLocaleString('ko-KR'), timestamp:new Date(t.created_at).getTime() });
+      
+      // [수정 1] 상품 고유 ID 기준으로 정렬 안정화
+      const mapProduct = p => ({ id:p.id, title:p.title, category:p.category, price:p.price, stock:p.stock, icon:p.icon, description:p.description, tag:p.tag });
+      
+      // [수정 2] 트랜잭션 타임스탬프 확실하게 추출
+      const mapTransaction = t => ({ 
+        id: t.id, 
+        userId: t.user_id, 
+        userName: t.user_name, 
+        type: t.type, 
+        amount: t.amount, 
+        itemTitle: t.item_title, 
+        status: t.status, 
+        used: t.used, 
+        usedTarget: t.used_target, 
+        useDate: t.use_date ? new Date(t.use_date).toLocaleString('ko-KR') : '', 
+        date: new Date(t.created_at).toLocaleString('ko-KR'), 
+        timestamp: new Date(t.created_at).getTime() || 0 
+      });
+      
       const mapBattle = b => ({ id:b.id, challenger:b.challenger, defender:b.defender, battleDate:b.battle_date, status:b.status, winner:b.winner, loser:b.loser, note:b.note });
 
       const refreshData = async () => {
         setLoadingData(true);
         const [pr, ur, tr, br] = await Promise.all([
-          // [핵심 수정] 상점 상품을 고유 ID 또는 생성일 순서로 엄격하게 정렬하여 구매 후 위치가 바뀌는 버그 차단
-          supabase.from('products').select('*').eq('active', true).order('created_at', { ascending: true }),
+          // [수정 1] 상점 상품을 created_at 대신 고유 id 기준으로 엄격하게 오름차순 정렬하여 순서 흔들림 완벽 차단
+          supabase.from('products').select('*').eq('active', true).order('id', { ascending: true }),
           supabase.from('profiles').select('*').order('created_at'),
           supabase.from('transactions').select('*').order('created_at', { ascending: false }).limit(500),
           supabase.from('battles').select('*').order('battle_date', {ascending:false})
@@ -265,11 +283,11 @@
               </div>
             )}
 
-            {/* 구매 & 사용 활동 공지 (모든 사용자 공개) */}
+            {/* [수정 2] 활동 실시간 공지: 타임스탬프 기준 내림차순(최신순) 정렬 철저 보장 */}
             {activeTab === 'feed' && (
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-3">
                 <h3 className="font-bold text-cyan-400 mb-4">📢 활동 실시간 공지 (전체 공개)</h3>
-                {[...transactions].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).map(t => (
+                {[...transactions].sort((a, b) => b.timestamp - a.timestamp).map(t => (
                   <div key={t.id} className="p-3 bg-slate-950 rounded-xl text-xs flex justify-between items-center">
                     <span><strong className="text-cyan-400">{t.userName}</strong> 님이 [{t.itemTitle}] {t.used ? `사용 완료 (대상: ${t.usedTarget || '없음'})` : '구매함'}</span>
                     <span className="text-slate-500 font-mono">{t.used ? t.useDate || t.date : t.date}</span>
