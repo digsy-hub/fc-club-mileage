@@ -40,7 +40,6 @@
       const mapProfile = p => ({ id:p.id, username:p.username, name:p.display_name, role:p.role, points:p.points });
       const mapProduct = p => ({ id:p.id, title:p.title, category:p.category, price:p.price, stock:p.stock, icon:p.icon, description:p.description, tag:p.tag });
       
-      // [수정] 사용 시각(use_date) 기준의 타임스탬프(useTimestamp)를 별도로 구함
       const mapTransaction = t => {
         const useTime = t.use_date ? new Date(t.use_date).getTime() : 0;
         const createTime = new Date(t.created_at).getTime() || 0;
@@ -57,7 +56,7 @@
           useDate: t.use_date ? new Date(t.use_date).toLocaleString('ko-KR') : '', 
           date: new Date(t.created_at).toLocaleString('ko-KR'), 
           timestamp: createTime,
-          useTimestamp: useTime || createTime // 사용 시각 타임스탬프
+          useTimestamp: useTime || createTime
         };
       };
       
@@ -66,7 +65,6 @@
       const refreshData = async () => {
         setLoadingData(true);
         const [pr, ur, tr, br] = await Promise.all([
-          // 상점 상품 정렬 고정 (id 오름차순)
           supabase.from('products').select('*').eq('active', true).order('id', { ascending: true }),
           supabase.from('profiles').select('*').order('created_at'),
           supabase.from('transactions').select('*').order('created_at', { ascending: false }).limit(500),
@@ -167,11 +165,29 @@
         setSelectedItemForUse(null); setTargetUserForUse(''); await refreshData(); showToast('아이템 사용 완료!', 'success');
       };
 
+      // 관리자 - 일반 회원 계정 삭제
+      const handleDeleteUser = async (targetUserId, targetUserName) => {
+        if (!confirm(`정말 '${targetUserName}' 회원을 삭제하시겠습니까?`)) return;
+        const { error } = await supabase.from('profiles').delete().eq('id', targetUserId);
+        if (error) { showToast('회원 삭제 실패: ' + error.message, 'error'); return; }
+        await refreshData();
+        showToast(`'${targetUserName}' 회원이 삭제되었습니다.`, 'success');
+      };
+
+      // 관리자 - 특정 활동 로그 삭제
+      const handleDeleteLog = async (logId) => {
+        if (!confirm('이 활동 로그를 삭제하시겠습니까?')) return;
+        const { error } = await supabase.from('transactions').delete().eq('id', logId);
+        if (error) { showToast('로그 삭제 실패: ' + error.message, 'error'); return; }
+        await refreshData();
+        showToast('활동 로그가 삭제되었습니다.', 'success');
+      };
+
       const getAttackersTargetingMe = () => {
         if (!currentUser) return [];
         const attackerNames = transactions
           .filter(t => t.used && (t.itemTitle.includes('신청권') || t.itemTitle.includes('공격권')))
-          .filter(t => t.usedTarget === currentUser.name || t.itemTitle.includes(`대상: ${currentUser.name}`))
+          .filter(t => t.usedTarget === currentUser.name || t.usedTarget === currentUser.username || t.itemTitle.includes(`대상: ${currentUser.name}`))
           .map(t => t.userName);
         return [...new Set(attackerNames)];
       };
@@ -211,10 +227,10 @@
                 {currentUser ? (
                   <div className="flex items-center gap-3">
                     <div className="bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-2xl">
-                      <span className="text-[10px] text-slate-400 font-bold block">{currentUser.name}</span>
+                      <span className="text-[10px] text-slate-400 font-bold block">{currentUser.name} (@{currentUser.username})</span>
                       <span className="text-xs font-black text-cyan-400">{currentUser.points.toLocaleString()} pt</span>
                     </div>
-                    <button onClick={handleLogout} className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold">로그아웃</button>
+                    <button onClick={handleLogout} className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700">로그아웃</button>
                   </div>
                 ) : (
                   <div className="flex gap-2">
@@ -286,19 +302,57 @@
               </div>
             )}
 
-            {/* [수정 완료] 사용 완료된 아이템 로그만 + 사용 시각(useTimestamp) 기준 내림차순 최신순 정렬 */}
+            {/* [핵심 수정] 내 로그(john23629) 강한 시각적 강조 + 관리자 로그 삭제 버튼 추가 */}
             {activeTab === 'feed' && (
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-3">
                 <h3 className="font-bold text-cyan-400 mb-4">📢 아이템 사용 활동 공지 (전체 공개)</h3>
                 {[...transactions]
-                  .filter(t => t.used) // 아이템 사용 로그만 필터링 (구매 로그 완벽 제거)
-                  .sort((a, b) => b.useTimestamp - a.useTimestamp) // 사용 시각 기준 최신순 정렬
-                  .map(t => (
-                    <div key={t.id} className="p-3 bg-slate-950 rounded-xl text-xs flex justify-between items-center">
-                      <span><strong className="text-cyan-400">{t.userName}</strong> 님이 [{t.itemTitle}] 사용 완료 (대상: {t.usedTarget || '없음'})</span>
-                      <span className="text-slate-500 font-mono">{t.useDate}</span>
-                    </div>
-                  ))}
+                  .filter(t => t.used)
+                  .sort((a, b) => b.useTimestamp - a.useTimestamp)
+                  .map(t => {
+                    // 내 계정(ID 또는 이름)인지 완벽 검사
+                    const isMyLog = currentUser && (
+                      t.userId === currentUser.id ||
+                      t.userName === currentUser.name ||
+                      t.userName === currentUser.username
+                    );
+                    
+                    return (
+                      <div key={t.id} className={`p-3.5 rounded-2xl text-xs flex justify-between items-center transition-all ${
+                        isMyLog 
+                          ? 'bg-cyan-950/70 border-2 border-cyan-400 shadow-lg shadow-cyan-500/20 my-1' 
+                          : 'bg-slate-950 border border-slate-800/80'
+                      }`}>
+                        <div className="flex items-center gap-2.5">
+                          {isMyLog && (
+                            <span className="px-2 py-0.5 rounded-lg bg-cyan-400 text-slate-950 font-black text-[10px] animate-pulse">
+                              내 활동
+                            </span>
+                          )}
+                          <span>
+                            <strong className={isMyLog ? 'text-cyan-300 font-black text-sm underline underline-offset-4 decoration-cyan-400' : 'text-cyan-400 font-bold'}>
+                              {t.userName}
+                            </strong> 
+                            <span className={isMyLog ? 'text-slate-100 font-semibold' : 'text-slate-300'}>
+                               님이 [{t.itemTitle}] 사용 완료 (대상: {t.usedTarget || '없음'})
+                            </span>
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center gap-3">
+                          <span className="text-slate-400 font-mono text-[11px]">{t.useDate}</span>
+                          {currentUser?.role === 'admin' && (
+                            <button 
+                              onClick={() => handleDeleteLog(t.id)}
+                              className="px-2 py-0.5 rounded bg-rose-950 text-rose-300 hover:bg-rose-900 text-[10px] font-bold border border-rose-800"
+                            >
+                              삭제
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             )}
 
@@ -368,8 +422,9 @@
                   </div>
                 </div>
 
+                {/* 관리자 - 회원 목록 및 계정 삭제 */}
                 <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 space-y-4">
-                  <h3 className="font-bold text-cyan-400">👤 등록된 회원 계정 목록</h3>
+                  <h3 className="font-bold text-cyan-400">👤 등록된 회원 계정 목록 및 관리</h3>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead>
@@ -377,6 +432,7 @@
                           <th className="py-2 px-3">이름/아이디</th>
                           <th className="py-2 px-3">권한</th>
                           <th className="py-2 px-3">마일리지</th>
+                          <th className="py-2 px-3 text-right">계정 관리</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800">
@@ -392,6 +448,16 @@
                               </span>
                             </td>
                             <td className="py-2.5 px-3 font-mono text-cyan-400 font-bold">{u.points.toLocaleString()} pt</td>
+                            <td className="py-2.5 px-3 text-right">
+                              {u.role !== 'admin' && (
+                                <button 
+                                  onClick={() => handleDeleteUser(u.id, u.name)}
+                                  className="px-2.5 py-1 rounded bg-rose-950 text-rose-300 hover:bg-rose-900 text-[11px] font-bold border border-rose-800"
+                                >
+                                  계정 삭제
+                                </button>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
