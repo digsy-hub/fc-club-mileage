@@ -108,7 +108,6 @@
       const [showAddBattleModal, setShowAddBattleModal] = useState(false);
       const [showAuthModal, setShowAuthModal] = useState(false);
       
-      // 관리자 경기 결과 수정용 모달 상태
       const [selectedBattleForEdit, setSelectedBattleForEdit] = useState(null);
       const [battleResultForm, setBattleResultForm] = useState({ winner: '', loser: '' });
 
@@ -153,6 +152,19 @@
 
       const handleLogout = async () => { await supabase.auth.signOut(); setCurrentUser(null); setActiveTab('store'); showToast('로그아웃 되었습니다.', 'info'); };
 
+      // [신규] 하루 1회 출석체크 핸들러
+      const handleDailyCheckIn = async () => {
+        if (!currentUser) return;
+        const { error } = await supabase.rpc('check_in_daily');
+        if (error) {
+          showToast(error.message, 'error');
+          return;
+        }
+        await refreshData();
+        await loadCurrentProfile(currentUser.id);
+        showToast('🎉 출석체크 완료! 100pt가 적립되었습니다.', 'success');
+      };
+
       const handlePurchase = async () => {
         if (!selectedItemForPurchase || !currentUser) return;
         const { error } = await supabase.rpc('purchase_product', { p_product_id: selectedItemForPurchase.id });
@@ -186,7 +198,6 @@
         showToast('활동 로그가 삭제되었습니다.', 'success');
       };
 
-      // 교체혈전 결과 업데이트 핸들러
       const handleUpdateBattleResult = async (e) => {
         e.preventDefault();
         if (!selectedBattleForEdit) return;
@@ -200,7 +211,7 @@
         }
 
         const { error } = await supabase.rpc('admin_update_battle_result', {
-          p_battle_id: selectedBattleForEdit.id,
+          p_battle_id: String(selectedBattleForEdit.id),
           p_winner: battleResultForm.winner,
           p_loser: battleResultForm.loser
         });
@@ -259,6 +270,14 @@
               <div>
                 {currentUser ? (
                   <div className="flex items-center gap-3">
+                    {/* [신규] 출석체크 버튼 */}
+                    <button 
+                      onClick={handleDailyCheckIn}
+                      className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs hover:brightness-110 shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition-all"
+                    >
+                      <span>📅</span> 출석체크 (+100pt)
+                    </button>
+                    
                     <div className="bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-2xl">
                       <span className="text-[10px] text-slate-400 font-bold block">{currentUser.name} (@{currentUser.username})</span>
                       <span className="text-xs font-black text-cyan-400">{currentUser.points.toLocaleString()} pt</span>
@@ -316,7 +335,6 @@
               </div>
             )}
 
-            {/* [수정 완료] 관리자일 경우 경기 카드 클릭 시 결과 수정 모달 오픈 */}
             {activeTab === 'battleNotice' && (
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-6">
                 <div className="flex justify-between items-center">
@@ -523,7 +541,7 @@
             )}
           </main>
 
-          {/* EDIT BATTLE RESULT MODAL (관리자 경기 결과 입력 모달) */}
+          {/* EDIT BATTLE RESULT MODAL */}
           {selectedBattleForEdit && (
             <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50">
               <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl max-w-sm w-full space-y-4 text-xs">
