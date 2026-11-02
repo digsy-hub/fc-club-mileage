@@ -152,7 +152,6 @@
 
       const handleLogout = async () => { await supabase.auth.signOut(); setCurrentUser(null); setActiveTab('store'); showToast('로그아웃 되었습니다.', 'info'); };
 
-      // [신규] 하루 1회 출석체크 핸들러
       const handleDailyCheckIn = async () => {
         if (!currentUser) return;
         const { error } = await supabase.rpc('check_in_daily');
@@ -242,8 +241,14 @@
         return matchesCategory && matchesSearch;
       });
 
+      // 내 보유 아이템 목록
       const myPurchasedItems = currentUser 
         ? transactions.filter(t => t.userId === currentUser.id && t.type === 'SPEND' && t.status === 'COMPLETED')
+        : [];
+
+      // [개인 마일리지 내역] 로그인한 본인의 모든 거래/적립/차감/구매 내역
+      const myPersonalHistory = currentUser
+        ? transactions.filter(t => t.userId === currentUser.id)
         : [];
 
       return (
@@ -270,7 +275,6 @@
               <div>
                 {currentUser ? (
                   <div className="flex items-center gap-3">
-                    {/* [신규] 출석체크 버튼 */}
                     <button 
                       onClick={handleDailyCheckIn}
                       className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs hover:brightness-110 shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition-all"
@@ -300,7 +304,7 @@
               <button onClick={() => setActiveTab('battleNotice')} className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold ${activeTab === 'battleNotice' ? 'bg-rose-500 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>⚔️ 교체혈전 공지사항</button>
               <button onClick={() => setActiveTab('feed')} className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold ${activeTab === 'feed' ? 'bg-cyan-500 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>📢 사용 활동 공지</button>
               {currentUser && (
-                <button onClick={() => setActiveTab('inventory')} className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold ${activeTab === 'inventory' ? 'bg-amber-400 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>🎁 내 보관함 ({myPurchasedItems.filter(i => !i.used).length})</button>
+                <button onClick={() => setActiveTab('inventory')} className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold ${activeTab === 'inventory' ? 'bg-amber-400 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>🎁 내 보관함 & 마일리지 내역 ({myPurchasedItems.filter(i => !i.used).length})</button>
               )}
               {currentUser?.role === 'admin' && (
                 <button onClick={() => setActiveTab('admin')} className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold ${activeTab === 'admin' ? 'bg-purple-600 text-white' : 'bg-slate-900 text-purple-400'}`}>👑 관리자 대시보드</button>
@@ -379,11 +383,12 @@
               </div>
             )}
 
+            {/* [공지 탭] 출석체크/개인 포인트 적립은 제외하고 '아이템 사용 완료' 내역만 출력 */}
             {activeTab === 'feed' && (
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-3">
                 <h3 className="font-bold text-cyan-400 mb-4">📢 아이템 사용 활동 공지 (전체 공개)</h3>
                 {[...transactions]
-                  .filter(t => t.used)
+                  .filter(t => t.used && t.type !== 'CHECKIN' && t.type !== 'ADMIN_GRANT' && t.type !== 'EARN')
                   .sort((a, b) => b.useTimestamp - a.useTimestamp)
                   .map(t => {
                     const isMyLog = currentUser && (
@@ -430,18 +435,64 @@
               </div>
             )}
 
+            {/* [개인 보관함 & 개인 마일리지 내역 탭] */}
             {activeTab === 'inventory' && currentUser && (
-              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
-                <h3 className="font-bold text-amber-400">🎁 내 아이템 보관함</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {myPurchasedItems.map(item => (
-                    <div key={item.id} className="p-4 bg-slate-950 rounded-2xl border border-slate-800">
-                      <h4 className="font-bold text-slate-200">{item.itemTitle}</h4>
-                      <button onClick={() => setSelectedItemForUse(item)} disabled={item.used} className={`w-full mt-4 py-2 rounded-xl text-xs font-bold ${item.used ? 'bg-slate-800 text-slate-500' : 'bg-amber-400 text-slate-950'}`}>
-                        {item.used ? '사용 완료됨' : '⚡ 사용하기'}
-                      </button>
+              <div className="space-y-6">
+                {/* 1. 보유 아이템 보관함 */}
+                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+                  <h3 className="font-bold text-amber-400">🎁 내 아이템 보관함</h3>
+                  {myPurchasedItems.length === 0 ? (
+                    <p className="text-xs text-slate-500 py-4">보유 중인 아이템이 없습니다. 상점에서 필요한 아이템을 구매해 보세요!</p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {myPurchasedItems.map(item => (
+                        <div key={item.id} className="p-4 bg-slate-950 rounded-2xl border border-slate-800">
+                          <h4 className="font-bold text-slate-200">{item.itemTitle}</h4>
+                          <button onClick={() => setSelectedItemForUse(item)} disabled={item.used} className={`w-full mt-4 py-2 rounded-xl text-xs font-bold ${item.used ? 'bg-slate-800 text-slate-500' : 'bg-amber-400 text-slate-950'}`}>
+                            {item.used ? '사용 완료됨' : '⚡ 사용하기'}
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
+                </div>
+
+                {/* 2. 내 개인 마일리지 획득 & 사용 전체 기록 (본인 전용) */}
+                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-bold text-cyan-400">📜 내 마일리지 적립 & 사용 내역 (개인 전용)</h3>
+                    <span className="text-xs font-mono text-slate-400">현재 잔여: <strong className="text-cyan-400">{currentUser.points.toLocaleString()} pt</strong></span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {myPersonalHistory.length === 0 ? (
+                      <p className="text-xs text-slate-500 py-4">마일리지 적립/사용 내역이 없습니다.</p>
+                    ) : (
+                      [...myPersonalHistory]
+                        .sort((a, b) => b.timestamp - a.timestamp)
+                        .map(h => {
+                          const isEarn = h.type === 'CHECKIN' || h.type === 'EARN' || (h.type === 'ADMIN_GRANT' && h.amount > 0);
+                          return (
+                            <div key={h.id} className="p-3 bg-slate-950 rounded-xl border border-slate-800/80 text-xs flex justify-between items-center">
+                              <div>
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold mr-2 ${
+                                  isEarn ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-rose-950 text-rose-300 border border-rose-800'
+                                }`}>
+                                  {isEarn ? '적립' : '차감/구매'}
+                                </span>
+                                <span className="font-bold text-slate-200">{h.itemTitle}</span>
+                              </div>
+                              <div className="flex items-center gap-4">
+                                <span className={`font-mono font-black ${isEarn ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                  {isEarn ? `+${h.amount?.toLocaleString() || 100} pt` : `-${h.amount?.toLocaleString() || 0} pt`}
+                                </span>
+                                <span className="text-slate-500 text-[11px] font-mono">{h.date}</span>
+                              </div>
+                            </div>
+                          );
+                        })
+                    )}
+                  </div>
                 </div>
               </div>
             )}
