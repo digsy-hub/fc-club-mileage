@@ -45,9 +45,9 @@
       const refreshData = async () => {
         setLoadingData(true);
         const [pr, ur, tr, br] = await Promise.all([
+          // [핵심 수정] 상점 상품을 고유 ID 또는 생성일 순서로 엄격하게 정렬하여 구매 후 위치가 바뀌는 버그 차단
           supabase.from('products').select('*').eq('active', true).order('created_at', { ascending: true }),
           supabase.from('profiles').select('*').order('created_at'),
-          // [수정] 트랜잭션(활동 로그)을 불러올 때 명확하게 최신순(created_at 내림차순)으로 고정
           supabase.from('transactions').select('*').order('created_at', { ascending: false }).limit(500),
           supabase.from('battles').select('*').order('battle_date', {ascending:false})
         ]);
@@ -265,14 +265,14 @@
               </div>
             )}
 
+            {/* 구매 & 사용 활동 공지 (모든 사용자 공개) */}
             {activeTab === 'feed' && (
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-3">
-                <h3 className="font-bold text-cyan-400 mb-4">📢 활동 실시간 공지</h3>
-                {/* [수정] 렌더링 시 타임스탬프 기준으로 엄격하게 내림차순(최신순) 정렬 보장 */}
+                <h3 className="font-bold text-cyan-400 mb-4">📢 활동 실시간 공지 (전체 공개)</h3>
                 {[...transactions].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).map(t => (
-                  <div key={t.id} className="p-3 bg-slate-950 rounded-xl text-xs flex justify-between">
+                  <div key={t.id} className="p-3 bg-slate-950 rounded-xl text-xs flex justify-between items-center">
                     <span><strong className="text-cyan-400">{t.userName}</strong> 님이 [{t.itemTitle}] {t.used ? `사용 완료 (대상: ${t.usedTarget || '없음'})` : '구매함'}</span>
-                    <span className="text-slate-500">{t.used ? t.useDate || t.date : t.date}</span>
+                    <span className="text-slate-500 font-mono">{t.used ? t.useDate || t.date : t.date}</span>
                   </div>
                 ))}
               </div>
