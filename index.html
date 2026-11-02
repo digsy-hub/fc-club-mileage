@@ -126,10 +126,7 @@
       const [authMode, setAuthMode] = useState('login');
       const [toastMessage, setToastMessage] = useState(null);
 
-      // 프로필 설정 폼 상태
       const [profileForm, setProfileForm] = useState({ avatarUrl: '', bgUrl: '', statusMsg: '' });
-      
-      // 관리자 칭호 부여 폼 상태
       const [adminTitleForm, setAdminTitleForm] = useState({ targetUserId: '', titleBadge: '' });
 
       const [adminGrantForm, setAdminGrantForm] = useState({ targetUserId: '', amount: '', reason: '' });
@@ -182,7 +179,6 @@
         showToast('🎉 출석체크 완료! 100pt가 적립되었습니다.', 'success');
       };
 
-      // 파일 업로드 시 Base64 변환 핸들러 (용량 최적화를 위해 리사이징 포함 가능)
       const handleImageUpload = (e, field) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -313,6 +309,10 @@
         return [...new Set(attackerNames)];
       };
 
+      const getUserByNameOrUsername = (nameOrUsername) => {
+        return users.find(u => u.name === nameOrUsername || u.username === nameOrUsername);
+      };
+
       const filteredItems = items.filter(item => {
         const matchesCategory = selectedCategory === '전체' || item.category === selectedCategory;
         const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase());
@@ -374,7 +374,7 @@
                     
                     <div className="bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-2xl flex items-center gap-2">
                       {currentUser.avatarUrl && (
-                        <img src={currentUser.avatarUrl} alt="avatar" className="w-6 h-6 rounded-full object-cover border border-cyan-500/50" />
+                        <img src={currentUser.avatarUrl} alt="avatar" className="w-7 h-7 rounded-full object-cover border border-cyan-500/50" />
                       )}
                       <div>
                         <div className="flex items-center gap-1">
@@ -442,51 +442,57 @@
               </div>
             )}
 
+            {/* [개선] 프로필 카드 잘림 현상 해결 & 가시성 확장 */}
             {activeTab === 'members' && (
               <div className="space-y-4">
                 <h3 className="font-bold text-emerald-400 text-sm">👥 남자는 싸커지 클럽원 프로필</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                   {users.map(u => (
                     <div key={u.id} className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden relative flex flex-col justify-between shadow-xl">
-                      <div className="h-24 bg-slate-950 relative border-b border-slate-800 overflow-hidden">
+                      {/* 배경 이미지 커버 영역 높이 32(128px)로 확장 */}
+                      <div className="h-32 bg-slate-950 relative border-b border-slate-800/80 overflow-hidden">
                         {u.bgUrl ? (
                           <img src={u.bgUrl} alt="bg" className="w-full h-full object-cover" />
                         ) : (
-                          <div className="w-full h-full bg-gradient-to-r from-slate-900 via-slate-800 to-slate-950" />
+                          <div className="w-full h-full bg-gradient-to-tr from-slate-950 via-slate-900 to-cyan-950" />
                         )}
-                        <div className="absolute -bottom-6 left-5">
+                        {/* 프로필 이미지 (z-index 10으로 올려서 잘림 완벽 방지) */}
+                        <div className="absolute -bottom-8 left-5 z-10">
                           {u.avatarUrl ? (
-                            <img src={u.avatarUrl} alt="avatar" className="w-14 h-14 rounded-2xl object-cover border-2 border-slate-900 shadow-md bg-slate-950" />
+                            <img src={u.avatarUrl} alt="avatar" className="w-16 h-16 rounded-2xl object-cover border-4 border-slate-900 shadow-xl bg-slate-950" />
                           ) : (
-                            <div className="w-14 h-14 rounded-2xl bg-cyan-500 text-slate-950 font-black text-xl flex items-center justify-center border-2 border-slate-900 shadow-md">
+                            <div className="w-16 h-16 rounded-2xl bg-cyan-500 text-slate-950 font-black text-2xl flex items-center justify-center border-4 border-slate-900 shadow-xl">
                               {u.name.substring(0, 1)}
                             </div>
                           )}
                         </div>
                       </div>
 
-                      <div className="pt-8 p-5 space-y-3">
+                      {/* 프로필 본문 */}
+                      <div className="pt-10 p-5 space-y-3">
                         <div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
+                          <div className="flex items-center gap-1.5 flex-wrap mb-1">
                             {u.titleBadge && (
-                              <span className="px-2 py-0.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 text-[10px] font-black shadow-sm">
+                              <span className="px-2 py-0.5 rounded-md bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 text-[10px] font-black shadow-sm">
                                 👑 {u.titleBadge}
                               </span>
                             )}
-                            <h4 className="font-extrabold text-slate-100 text-base">{u.name}</h4>
+                            <h4 className="font-black text-slate-100 text-lg">{u.name}</h4>
                           </div>
-                          <span className="text-[11px] text-slate-500 block">@{u.username}</span>
+                          <span className="text-xs text-slate-500 block font-mono">@{u.username}</span>
                         </div>
 
-                        {u.statusMsg && (
+                        {u.statusMsg ? (
                           <p className="text-xs bg-slate-950 border border-slate-800/80 p-2.5 rounded-xl text-slate-300 italic">
                             "{u.statusMsg}"
                           </p>
+                        ) : (
+                          <p className="text-xs text-slate-600 italic py-1">상태 메시지가 없습니다.</p>
                         )}
 
-                        <div className="pt-2 border-t border-slate-800 flex justify-between items-center text-xs">
+                        <div className="pt-3 border-t border-slate-800/80 flex justify-between items-center text-xs">
                           <span className="text-slate-400 font-semibold">보유 마일리지</span>
-                          <span className="font-mono font-bold text-cyan-400">{u.points.toLocaleString()} pt</span>
+                          <span className="font-mono font-black text-cyan-400 text-sm">{u.points.toLocaleString()} pt</span>
                         </div>
                       </div>
                     </div>
@@ -495,46 +501,89 @@
               </div>
             )}
 
+            {/* [개선] 교체혈전 공지 - 도전자/방어자 프로필 사진 표시 & VS 시각화 */}
             {activeTab === 'battleNotice' && (
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-6">
                 <div className="flex justify-between items-center">
-                  <h3 className="font-bold text-rose-400">⚔️ 교체혈전 경기 공지</h3>
+                  <h3 className="font-bold text-rose-400 text-base">⚔️ 교체혈전 경기 공지</h3>
                   {currentUser?.role === 'admin' && (
                     <span className="text-[11px] text-slate-400">* 관리자는 진행 중인 경기를 클릭하여 결과를 입력할 수 있습니다.</span>
                   )}
                 </div>
                 <div className="space-y-4">
-                  {battles.map(b => (
-                    <div 
-                      key={b.id} 
-                      onClick={() => {
-                        if (currentUser?.role === 'admin') {
-                          setSelectedBattleForEdit(b);
-                          setBattleResultForm({ winner: b.winner || b.challenger, loser: b.loser || b.defender });
-                        }
-                      }}
-                      className={`p-4 bg-slate-950 rounded-2xl border border-slate-800 flex justify-between items-center text-xs transition-all ${
-                        currentUser?.role === 'admin' ? 'cursor-pointer hover:border-rose-500/50 hover:bg-slate-900/60' : ''
-                      }`}
-                    >
-                      <div>
-                        <span className="text-slate-400 font-mono">시행 일자: {b.battleDate}</span>
-                        <div className="text-sm font-bold mt-1 text-slate-100">{b.challenger} vs {b.defender}</div>
-                      </div>
-                      <div className="text-right flex items-center gap-3">
-                        {b.status === 'COMPLETED' ? (
-                          <span className="text-emerald-400 font-bold">승: {b.winner} / 패: {b.loser}</span>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <span className="text-amber-400 font-bold">진행 중</span>
-                            {currentUser?.role === 'admin' && (
-                              <span className="px-2 py-1 rounded bg-rose-600 text-white text-[10px] font-bold">결과 입력</span>
+                  {battles.map(b => {
+                    const challengerUser = getUserByNameOrUsername(b.challenger);
+                    const defenderUser = getUserByNameOrUsername(b.defender);
+
+                    return (
+                      <div 
+                        key={b.id} 
+                        onClick={() => {
+                          if (currentUser?.role === 'admin') {
+                            setSelectedBattleForEdit(b);
+                            setBattleResultForm({ winner: b.winner || b.challenger, loser: b.loser || b.defender });
+                          }
+                        }}
+                        className={`p-5 bg-slate-950 rounded-3xl border border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 transition-all ${
+                          currentUser?.role === 'admin' ? 'cursor-pointer hover:border-rose-500/50 hover:bg-slate-900/60' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
+                          {/* 도전자 프로필 */}
+                          <div className="flex items-center gap-3">
+                            {challengerUser?.avatarUrl ? (
+                              <img src={challengerUser.avatarUrl} alt="challenger" className="w-12 h-12 rounded-2xl object-cover border-2 border-rose-500/60 shadow-md" />
+                            ) : (
+                              <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-300 font-black text-base flex items-center justify-center">
+                                {b.challenger.substring(0, 1)}
+                              </div>
+                            )}
+                            <div>
+                              <span className="text-[10px] text-rose-400 font-bold block">도전자</span>
+                              <strong className="text-sm text-slate-100 font-black">{b.challenger}</strong>
+                            </div>
+                          </div>
+
+                          <div className="px-3 py-1 rounded-xl bg-slate-900 border border-slate-800 text-rose-500 font-black text-xs">
+                            VS
+                          </div>
+
+                          {/* 방어자 프로필 */}
+                          <div className="flex items-center gap-3">
+                            <div>
+                              <span className="text-[10px] text-cyan-400 font-bold block text-right md:text-left">방어자</span>
+                              <strong className="text-sm text-slate-100 font-black">{b.defender}</strong>
+                            </div>
+                            {defenderUser?.avatarUrl ? (
+                              <img src={defenderUser.avatarUrl} alt="defender" className="w-12 h-12 rounded-2xl object-cover border-2 border-cyan-500/60 shadow-md" />
+                            ) : (
+                              <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 font-black text-base flex items-center justify-center">
+                                {b.defender.substring(0, 1)}
+                              </div>
                             )}
                           </div>
-                        )}
+                        </div>
+
+                        <div className="text-right flex items-center gap-4 w-full md:w-auto justify-between md:justify-end pt-2 md:pt-0 border-t md:border-t-0 border-slate-800">
+                          <span className="text-slate-400 font-mono text-xs">일자: {b.battleDate}</span>
+                          {b.status === 'COMPLETED' ? (
+                            <span className="px-3 py-1 rounded-xl bg-emerald-950 border border-emerald-800 text-emerald-400 font-bold text-xs">
+                              🏆 승리: {b.winner}
+                            </span>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="px-3 py-1 rounded-xl bg-amber-950 border border-amber-800 text-amber-400 font-bold text-xs">
+                                ⚔️ 진행 중
+                              </span>
+                              {currentUser?.role === 'admin' && (
+                                <span className="px-2.5 py-1 rounded-xl bg-rose-600 text-white text-[11px] font-bold">결과 입력</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -780,7 +829,7 @@
             )}
           </main>
 
-          {/* PROFILE EDIT MODAL (파일 업로드 기능 추가됨) */}
+          {/* PROFILE EDIT MODAL */}
           {showProfileModal && (
             <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50">
               <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl max-w-sm w-full space-y-4 text-xs">
@@ -867,6 +916,67 @@
             </div>
           )}
 
+          {/* ADD BATTLE MODAL (회원 선택 드롭다운 적용) */}
+          {showAddBattleModal && (
+            <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50">
+              <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl max-w-sm w-full space-y-3 text-xs">
+                <h3 className="font-bold text-rose-400 text-sm">교체혈전 일정 추가</h3>
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!newBattleForm.challenger || !newBattleForm.defender) {
+                    showToast('도전자와 방어자를 모두 선택해주세요.', 'error');
+                    return;
+                  }
+                  if (newBattleForm.challenger === newBattleForm.defender) {
+                    showToast('도전자와 방어자는 동일할 수 없습니다.', 'error');
+                    return;
+                  }
+                  const { error } = await supabase.rpc('admin_add_battle', { p_challenger:newBattleForm.challenger, p_defender:newBattleForm.defender, p_battle_date:newBattleForm.battleDate || new Date().toISOString().slice(0,10), p_note:newBattleForm.note || '교체혈전 경기' });
+                  if (error) { showToast('일정 등록 실패: '+error.message, 'error'); return; }
+                  setShowAddBattleModal(false); setNewBattleForm({ challenger:'', defender:'', battleDate:'', note:'' }); await refreshData(); showToast('교체혈전 일정이 등록되었습니다!', 'success');
+                }} className="space-y-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1">도전자 선택</label>
+                    <select
+                      value={newBattleForm.challenger}
+                      onChange={e => setNewBattleForm({...newBattleForm, challenger: e.target.value})}
+                      required
+                      className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-slate-100"
+                    >
+                      <option value="">-- 도전자 선택 --</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.name}>{u.name} (@{u.username})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">방어자 선택</label>
+                    <select
+                      value={newBattleForm.defender}
+                      onChange={e => setNewBattleForm({...newBattleForm, defender: e.target.value})}
+                      required
+                      className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-slate-100"
+                    >
+                      <option value="">-- 방어자 선택 --</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.name}>{u.name} (@{u.username})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">시행 일자</label>
+                    <input type="date" required value={newBattleForm.battleDate} onChange={e => setNewBattleForm({...newBattleForm, battleDate: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-slate-100" />
+                  </div>
+
+                  <button type="submit" className="w-full py-3 bg-rose-600 text-white font-bold rounded-xl">일정 등록</button>
+                </form>
+                <button onClick={() => setShowAddBattleModal(false)} className="w-full text-slate-500 text-center">취소</button>
+              </div>
+            </div>
+          )}
+
           {/* PURCHASE MODAL */}
           {selectedItemForPurchase && currentUser && (
             <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50">
@@ -909,28 +1019,6 @@
                 
                 <button onClick={handleUseItem} className="w-full py-3 bg-amber-400 text-slate-950 font-bold rounded-xl text-xs">⚡ 아이템 사용하기</button>
                 <button onClick={() => { setSelectedItemForUse(null); setTargetUserForUse(''); }} className="w-full text-xs text-slate-500">취소</button>
-              </div>
-            </div>
-          )}
-
-          {/* ADD BATTLE MODAL */}
-          {showAddBattleModal && (
-            <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50">
-              <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl max-w-sm w-full space-y-3 text-xs">
-                <h3 className="font-bold text-rose-400 text-sm">교체혈전 일정 추가</h3>
-                <form onSubmit={async (e) => {
-                  e.preventDefault();
-                  if (!newBattleForm.challenger || !newBattleForm.defender) return;
-                  const { error } = await supabase.rpc('admin_add_battle', { p_challenger:newBattleForm.challenger, p_defender:newBattleForm.defender, p_battle_date:newBattleForm.battleDate || new Date().toISOString().slice(0,10), p_note:newBattleForm.note || '교체혈전 경기' });
-                  if (error) { showToast('일정 등록 실패: '+error.message, 'error'); return; }
-                  setShowAddBattleModal(false); setNewBattleForm({ challenger:'', defender:'', battleDate:'', note:'' }); await refreshData(); showToast('교체혈전 일정이 등록되었습니다!', 'success');
-                }} className="space-y-3">
-                  <input type="text" placeholder="도전자" required value={newBattleForm.challenger} onChange={e => setNewBattleForm({...newBattleForm, challenger: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl" />
-                  <input type="text" placeholder="방어자" required value={newBattleForm.defender} onChange={e => setNewBattleForm({...newBattleForm, defender: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl" />
-                  <input type="date" required value={newBattleForm.battleDate} onChange={e => setNewBattleForm({...newBattleForm, battleDate: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl" />
-                  <button type="submit" className="w-full py-3 bg-rose-600 text-white font-bold rounded-xl">일정 등록</button>
-                </form>
-                <button onClick={() => setShowAddBattleModal(false)} className="w-full text-slate-500">취소</button>
               </div>
             </div>
           )}
