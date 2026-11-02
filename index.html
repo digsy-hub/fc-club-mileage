@@ -182,7 +182,22 @@
         showToast('🎉 출석체크 완료! 100pt가 적립되었습니다.', 'success');
       };
 
-      // 개인 프로필 저장 (프사, 배경, 상태메시지)
+      // 파일 업로드 시 Base64 변환 핸들러 (용량 최적화를 위해 리사이징 포함 가능)
+      const handleImageUpload = (e, field) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (file.size > 2 * 1024 * 1024) {
+          showToast('이미지 용량은 2MB 이하만 가능합니다.', 'error');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = (uploadEvent) => {
+          setProfileForm(prev => ({ ...prev, [field]: uploadEvent.target.result }));
+          showToast('이미지가 첨부되었습니다. [프로필 저장 완료]를 눌러주세요!', 'info');
+        };
+        reader.readAsDataURL(file);
+      };
+
       const handleSaveProfile = async (e) => {
         e.preventDefault();
         if (!currentUser) return;
@@ -206,7 +221,6 @@
         showToast('프로필이 업데이트되었습니다!', 'success');
       };
 
-      // 관리자 칭호 부여
       const handleAdminGrantTitle = async (e) => {
         e.preventDefault();
         if (!adminTitleForm.targetUserId) {
@@ -344,7 +358,6 @@
                       <span>📅</span> 출석체크 (+100pt)
                     </button>
 
-                    {/* 내 프로필 꾸미기 모달 버튼 */}
                     <button
                       onClick={() => {
                         setProfileForm({
@@ -429,21 +442,18 @@
               </div>
             )}
 
-            {/* [신규] 클럽원들의 꾸민 프로필을 한눈에 보는 카드 탭 */}
             {activeTab === 'members' && (
               <div className="space-y-4">
                 <h3 className="font-bold text-emerald-400 text-sm">👥 남자는 싸커지 클럽원 프로필</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                   {users.map(u => (
                     <div key={u.id} className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden relative flex flex-col justify-between shadow-xl">
-                      {/* 배경 이미지 영역 */}
                       <div className="h-24 bg-slate-950 relative border-b border-slate-800 overflow-hidden">
                         {u.bgUrl ? (
                           <img src={u.bgUrl} alt="bg" className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full bg-gradient-to-r from-slate-900 via-slate-800 to-slate-950" />
                         )}
-                        {/* 프로필 이미지 (배경 위에 입체적으로 표시) */}
                         <div className="absolute -bottom-6 left-5">
                           {u.avatarUrl ? (
                             <img src={u.avatarUrl} alt="avatar" className="w-14 h-14 rounded-2xl object-cover border-2 border-slate-900 shadow-md bg-slate-950" />
@@ -455,7 +465,6 @@
                         </div>
                       </div>
 
-                      {/* 프로필 본문 */}
                       <div className="pt-8 p-5 space-y-3">
                         <div>
                           <div className="flex items-center gap-1.5 flex-wrap">
@@ -640,7 +649,6 @@
               </div>
             )}
 
-            {/* 관리자 대시보드 (칭호 부여 기능 추가됨) */}
             {activeTab === 'admin' && currentUser?.role === 'admin' && (
               <div className="space-y-6">
                 <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 space-y-4">
@@ -650,7 +658,6 @@
                     <button onClick={() => setShowAddItemModal(true)} className="px-4 py-2 rounded-xl bg-purple-600 text-white font-bold text-xs">+ 상점 상품 추가</button>
                   </div>
 
-                  {/* 관리자 회원 칭호 부여 */}
                   <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3 mt-4">
                     <h4 className="font-bold text-amber-400 text-xs">👑 클럽원 이름 옆 특별 칭호 부여</h4>
                     <form onSubmit={handleAdminGrantTitle} className="space-y-2 text-xs">
@@ -677,7 +684,6 @@
                     </form>
                   </div>
 
-                  {/* 마일리지 수동 지급 / 차감 */}
                   <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3 mt-4">
                     <h4 className="font-bold text-cyan-400 text-xs">⚡ 클럽원 마일리지 수동 지급 / 차감</h4>
                     <form onSubmit={async (e) => {
@@ -774,7 +780,7 @@
             )}
           </main>
 
-          {/* PROFILE EDIT MODAL (개인 프로필 꾸미기 모달) */}
+          {/* PROFILE EDIT MODAL (파일 업로드 기능 추가됨) */}
           {showProfileModal && (
             <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50">
               <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl max-w-sm w-full space-y-4 text-xs">
@@ -782,24 +788,22 @@
                 
                 <form onSubmit={handleSaveProfile} className="space-y-3">
                   <div>
-                    <label className="block text-slate-400 mb-1">프로필 이미지 URL</label>
+                    <label className="block text-slate-400 mb-1">프로필 이미지 파일 선택</label>
                     <input 
-                      type="url" 
-                      placeholder="https://example.com/avatar.jpg" 
-                      value={profileForm.avatarUrl}
-                      onChange={e => setProfileForm({...profileForm, avatarUrl: e.target.value})}
-                      className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-slate-100"
+                      type="file" 
+                      accept="image/*"
+                      onChange={e => handleImageUpload(e, 'avatarUrl')}
+                      className="w-full bg-slate-950 border border-slate-800 p-2 rounded-xl text-slate-300 text-[11px] file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-cyan-500 file:text-slate-950 hover:file:bg-cyan-400 cursor-pointer"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-slate-400 mb-1">배경 커버 이미지 URL</label>
+                    <label className="block text-slate-400 mb-1">배경 커버 이미지 파일 선택</label>
                     <input 
-                      type="url" 
-                      placeholder="https://example.com/bg.jpg" 
-                      value={profileForm.bgUrl}
-                      onChange={e => setProfileForm({...profileForm, bgUrl: e.target.value})}
-                      className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-slate-100"
+                      type="file" 
+                      accept="image/*"
+                      onChange={e => handleImageUpload(e, 'bgUrl')}
+                      className="w-full bg-slate-950 border border-slate-800 p-2 rounded-xl text-slate-300 text-[11px] file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-cyan-500 file:text-slate-950 hover:file:bg-cyan-400 cursor-pointer"
                     />
                   </div>
 
