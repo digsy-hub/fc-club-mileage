@@ -44,6 +44,7 @@
       const [items, setItems] = useState([]);
       const [transactions, setTransactions] = useState([]);
       const [battles, setBattles] = useState([]);
+      const [bets, setBets] = useState([]);
       const [loadingData, setLoadingData] = useState(true);
 
       const mapProfile = p => {
@@ -116,16 +117,18 @@
 
       const refreshData = async () => {
         setLoadingData(true);
-        const [pr, ur, tr, br] = await Promise.all([
+        const [pr, ur, tr, br, ber] = await Promise.all([
           supabase.from('products').select('*').eq('active', true).order('id', { ascending: true }),
           supabase.from('profiles').select('*').order('created_at'),
           supabase.from('transactions').select('*').order('created_at', { ascending: false }).limit(500),
-          supabase.from('battles').select('*').order('battle_date', {ascending:false})
+          supabase.from('battles').select('*').order('battle_date', {ascending:false}),
+          supabase.from('bets').select('*')
         ]);
-        const err = pr.error || ur.error || tr.error || br.error;
+        const err = pr.error || ur.error || tr.error || br.error || ber.error;
         if (err) showToast('데이터 불러오기 실패: ' + err.message, 'error');
         setItems((pr.data||[]).map(mapProduct)); setUsers((ur.data||[]).map(mapProfile));
         setTransactions((tr.data||[]).map(mapTransaction)); setBattles((br.data||[]).map(mapBattle));
+        setBets(ber.data || []);
         setLoadingData(false);
       };
 
@@ -164,6 +167,11 @@
       
       const [selectedBattleForEdit, setSelectedBattleForEdit] = useState(null);
       const [battleResultForm, setBattleResultForm] = useState({ winner: '', loser: '' });
+
+      // 토토 배팅 모달 상태
+      const [selectedBattleForBet, setSelectedBattleForBet] = useState(null);
+      const [betTargetPlayer, setBetTargetPlayer] = useState('');
+      const [betAmount, setBetAmount] = useState('');
 
       const [authMode, setAuthMode] = useState('login');
       const [toastMessage, setToastMessage] = useState(null);
@@ -291,22 +299,45 @@
 
       const handleEquipTitle = async (titleObjToEquip) => {
         if (!currentUser) return;
-        
         const titleBadgeValue = titleObjToEquip ? JSON.stringify(titleObjToEquip) : null;
-
-        const { error } = await supabase
-          .from('profiles')
-          .update({ title_badge: titleBadgeValue })
-          .eq('id', currentUser.id);
-
-        if (error) {
-          showToast('칭호 변경 실패: ' + error.message, 'error');
-          return;
-        }
-
+        const { error } = await supabase.from('profiles').update({ title_badge: titleBadgeValue }).eq('id', currentUser.id);
+        if (error) { showToast('칭호 변경 실패: ' + error.message, 'error'); return; }
         await loadCurrentProfile(currentUser.id);
         await refreshData();
         showToast(titleObjToEquip ? `'${titleObjToEquip.name}' 칭호를 장착했습니다!` : '칭호를 해제했습니다.', 'success');
+      };
+
+      // [토토] 배팅 제출 함수
+      const handlePlaceBetSubmit = async (e) => {
+        e.preventDefault();
+        if (!selectedBattleForBet || !currentUser) return;
+        const amountNum = parseInt(betAmount, 10);
+        if (!Number.isInteger(amountNum) || amountNum <= 0) {
+          showToast('올바른 배팅 금액을 입력해주세요.', 'error');
+          return;
+        }
+        if (currentUser.points < amountNum) {
+          showToast('보유 마일리지가 부족합니다.', 'error');
+          return;
+        }
+
+        const { error } = await supabase.rpc('place_bet', {
+          p_battle_id: String(selectedBattleForBet.id),
+          p_target_player: betTargetPlayer,
+          p_amount: amountNum
+        });
+
+        if (error) {
+          showToast('배팅 실패: ' + error.message, 'error');
+          return;
+        }
+
+        setSelectedBattleForBet(null);
+        setBetAmount('');
+        setBetTargetPlayer('');
+        await refreshData();
+        await loadCurrentProfile(currentUser.id);
+        showToast(`🎯 '${betTargetPlayer}' 선수에게 ${amountNum.toLocaleString()} pt 배팅 완료!`, 'success');
       };
 
       const handlePurchase = async () => {
@@ -368,7 +399,8 @@
         setSelectedBattleForEdit(null);
         setBattleResultForm({ winner: '', loser: '' });
         await refreshData();
-        showToast('교체혈전 결과가 성공적으로 등록되었습니다!', 'success');
+        if (currentUser) await loadCurrentProfile(currentUser.id);
+        showToast('교체혈전 결과 확정 및 토토 정산이 완료되었습니다!', 'success');
       };
 
       const getAttackersTargetingMe = () => {
@@ -475,7 +507,7 @@
           <main className="max-w-7xl mx-auto px-4 pt-6 space-y-6">
             <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-800 no-scrollbar">
               <button onClick={() => setActiveTab('store')} className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold ${activeTab === 'store' ? 'bg-cyan-500 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>🛍️ 마일리지 상점</button>
-              <button onClick={() => setActiveTab('battleNotice')} className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold ${activeTab === 'battleNotice' ? 'bg-rose-500 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>⚔️ 교체혈전 공지사항</button>
+              <button onClick={() => setActiveTab('battleNotice')} className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold ${activeTab === 'battleNotice' ? 'bg-rose-500 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>⚔️ 교체혈전 & 승부예측 토토</button>
               <button onClick={() => setActiveTab('feed')} className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold ${activeTab === 'feed' ? 'bg-cyan-500 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>📢 사용 활동 공지</button>
               <button onClick={() => setActiveTab('members')} className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold ${activeTab === 'members' ? 'bg-emerald-500 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>👥 클럽원 프로필 카드</button>
               {currentUser && (
@@ -568,13 +600,16 @@
               </div>
             )}
 
-            {/* [개선] 교체혈전 공지사항: 행 높이 대폭 확장 + 사진 큼직하게 + 칭호 및 승자의 한마디 표시 */}
+            {/* [신규 통합] 교체혈전 공지 & 승부예측 토토 시스템 */}
             {activeTab === 'battleNotice' && (
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-6">
                 <div className="flex justify-between items-center">
-                  <h3 className="font-bold text-rose-400 text-base">⚔️ 교체혈전 경기 공지</h3>
+                  <div>
+                    <h3 className="font-bold text-rose-400 text-base">⚔️ 교체혈전 경기 공지 & 승부예측 토토</h3>
+                    <p className="text-xs text-slate-400 mt-1">진행 중인 경기에 마일리지를 배팅하고 승리 시 배당금을 나누어 가집니다!</p>
+                  </div>
                   {currentUser?.role === 'admin' && (
-                    <span className="text-[11px] text-slate-400">* 관리자는 진행 중인 경기를 클릭하여 결과를 입력할 수 있습니다.</span>
+                    <span className="text-[11px] text-slate-400">* 관리자는 경기를 클릭하여 결과 및 정산을 처리할 수 있습니다.</span>
                   )}
                 </div>
                 <div className="space-y-5">
@@ -582,18 +617,18 @@
                     const challengerUser = getUserByNameOrUsername(b.challenger);
                     const defenderUser = getUserByNameOrUsername(b.defender);
 
+                    // 해당 경기의 배팅 내역 계산
+                    const battleBets = bets.filter(bet => String(bet.battle_id) === String(b.id));
+                    const challengerBetsTotal = battleBets.filter(bet => bet.target_player === b.challenger).reduce((sum, bet) => sum + bet.amount, 0);
+                    const defenderBetsTotal = battleBets.filter(bet => bet.target_player === b.defender).reduce((sum, bet) => sum + bet.amount, 0);
+                    const totalPot = challengerBetsTotal + defenderBetsTotal;
+
+                    const myBet = currentUser ? battleBets.find(bet => bet.user_id === currentUser.id) : null;
+
                     return (
                       <div 
                         key={b.id} 
-                        onClick={() => {
-                          if (currentUser?.role === 'admin') {
-                            setSelectedBattleForEdit(b);
-                            setBattleResultForm({ winner: b.winner || b.challenger, loser: b.loser || b.defender });
-                          }
-                        }}
-                        className={`p-6 bg-slate-950 rounded-3xl border border-slate-800 flex flex-col gap-5 transition-all shadow-xl ${
-                          currentUser?.role === 'admin' ? 'cursor-pointer hover:border-rose-500/50 hover:bg-slate-900/60' : ''
-                        }`}
+                        className="p-6 bg-slate-950 rounded-3xl border border-slate-800 flex flex-col gap-5 transition-all shadow-xl relative"
                       >
                         <div className="flex flex-col md:flex-row justify-between items-center gap-6">
                           {/* 도전자 프로필 & 칭호 */}
@@ -615,6 +650,7 @@
                                   </span>
                                 )}
                               </div>
+                              <span className="text-[11px] text-amber-400 font-mono block mt-1">총 배팅: {challengerBetsTotal.toLocaleString()} pt</span>
                             </div>
                           </div>
 
@@ -635,6 +671,7 @@
                                 )}
                                 <strong className="text-base text-slate-100 font-black truncate">{b.defender}</strong>
                               </div>
+                              <span className="text-[11px] text-amber-400 font-mono block mt-1">총 배팅: {defenderBetsTotal.toLocaleString()} pt</span>
                             </div>
                             {defenderUser?.avatarUrl ? (
                               <img src={defenderUser.avatarUrl} alt="defender" className="w-16 h-16 rounded-2xl object-cover border-2 border-cyan-500/60 shadow-lg shrink-0 bg-slate-900" />
@@ -646,9 +683,22 @@
                           </div>
                         </div>
 
-                        {/* 하단 정보 (일자, 승리 여부, 승자의 한마디) */}
+                        {/* 토토 배팅 현황 바 (Progress Bar) */}
+                        <div className="space-y-1.5 bg-slate-900/80 p-3 rounded-2xl border border-slate-800">
+                          <div className="flex justify-between text-[11px] font-bold">
+                            <span className="text-rose-400">{b.challenger} ({totalPot > 0 ? Math.round((challengerBetsTotal/totalPot)*100) : 50}%)</span>
+                            <span className="text-slate-400 font-mono">총 상금 풀: {totalPot.toLocaleString()} pt</span>
+                            <span className="text-cyan-400">{b.defender} ({totalPot > 0 ? Math.round((defenderBetsTotal/totalPot)*100) : 50}%)</span>
+                          </div>
+                          <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden flex">
+                            <div className="bg-rose-500 h-full transition-all" style={{ width: `${totalPot > 0 ? (challengerBetsTotal/totalPot)*100 : 50}%` }} />
+                            <div className="bg-cyan-500 h-full transition-all" style={{ width: `${totalPot > 0 ? (defenderBetsTotal/totalPot)*100 : 50}%` }} />
+                          </div>
+                        </div>
+
+                        {/* 하단 정보 (일자, 승리 여부, 승자의 한마디 & 배팅 버튼) */}
                         <div className="pt-4 border-t border-slate-900 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3 flex-wrap">
                             <span className="text-slate-400 font-mono text-xs">📅 일자: {b.battleDate}</span>
                             {b.status === 'COMPLETED' && b.winnerComment && (
                               <div className="bg-amber-950/40 border border-amber-500/40 px-3 py-1.5 rounded-xl text-xs text-amber-200 flex items-center gap-1.5 shadow-sm">
@@ -658,20 +708,43 @@
                             )}
                           </div>
 
-                          <div>
+                          <div className="flex items-center gap-3">
                             {b.status === 'COMPLETED' ? (
                               <span className="px-3.5 py-1.5 rounded-xl bg-emerald-950 border border-emerald-800 text-emerald-400 font-bold text-xs shadow-md">
-                                🏆 승리: {b.winner}
+                                🏆 경기 종료 (승리: {b.winner})
                               </span>
                             ) : (
                               <div className="flex items-center gap-2">
                                 <span className="px-3.5 py-1.5 rounded-xl bg-amber-950 border border-amber-800 text-amber-400 font-bold text-xs shadow-md">
-                                  ⚔️ 진행 중
+                                  ⚔️ 토토 진행 중
                                 </span>
-                                {currentUser?.role === 'admin' && (
-                                  <span className="px-3 py-1.5 rounded-xl bg-rose-600 text-white text-xs font-bold shadow-md">결과 입력</span>
+                                {currentUser && (
+                                  myBet ? (
+                                    <span className="px-3.5 py-1.5 rounded-xl bg-cyan-950 border border-cyan-800 text-cyan-300 font-bold text-xs">
+                                      ✓ 배팅완료 ({myBet.target_player} / {myBet.amount.toLocaleString()}pt)
+                                    </span>
+                                  ) : (
+                                    <button 
+                                      onClick={() => { setSelectedBattleForBet(b); setBetTargetPlayer(b.challenger); }}
+                                      className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs hover:brightness-110 shadow-lg shadow-amber-500/20"
+                                    >
+                                      💰 승부예측 배팅하기
+                                    </button>
+                                  )
                                 )}
                               </div>
+                            )}
+
+                            {currentUser?.role === 'admin' && (
+                              <button 
+                                onClick={() => {
+                                  setSelectedBattleForEdit(b);
+                                  setBattleResultForm({ winner: b.winner || b.challenger, loser: b.loser || b.defender });
+                                }}
+                                className="px-3 py-1.5 rounded-xl bg-purple-600 text-white text-xs font-bold shadow-md hover:bg-purple-500"
+                              >
+                                관리자 결과확정
+                              </button>
                             )}
                           </div>
                         </div>
@@ -1055,7 +1128,52 @@
             )}
           </main>
 
-          {/* PROFILE EDIT MODAL (승자의 한마디 추가) */}
+          {/* 토토 배팅 모달 */}
+          {selectedBattleForBet && currentUser && (
+            <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50">
+              <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl max-w-sm w-full space-y-4 text-xs">
+                <h3 className="font-bold text-amber-400 text-sm">💰 교체혈전 승부예측 배팅</h3>
+                <p className="text-slate-400">경기: <strong className="text-slate-200">{selectedBattleForBet.challenger} vs {selectedBattleForBet.defender}</strong></p>
+                <p className="text-slate-400">보유 잔액: <strong className="text-cyan-400">{currentUser.points.toLocaleString()} pt</strong></p>
+                
+                <form onSubmit={handlePlaceBetSubmit} className="space-y-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1">승리예측 선수 선택</label>
+                    <select 
+                      value={betTargetPlayer} 
+                      onChange={e => setBetTargetPlayer(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-slate-100"
+                    >
+                      <option value={selectedBattleForBet.challenger}>도전자: {selectedBattleForBet.challenger}</option>
+                      <option value={selectedBattleForBet.defender}>방어자: {selectedBattleForBet.defender}</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 mb-1">배팅할 마일리지 (pt)</label>
+                    <input 
+                      type="number" 
+                      placeholder="예: 1000" 
+                      required 
+                      min="100"
+                      max={currentUser.points}
+                      value={betAmount}
+                      onChange={e => setBetAmount(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-slate-100 font-mono"
+                    />
+                  </div>
+
+                  <button type="submit" className="w-full py-3 bg-amber-500 text-slate-950 font-black rounded-xl hover:brightness-110">
+                    배팅 확정하기
+                  </button>
+                </form>
+
+                <button onClick={() => setSelectedBattleForBet(null)} className="w-full text-slate-500 text-center">취소</button>
+              </div>
+            </div>
+          )}
+
+          {/* PROFILE EDIT MODAL */}
           {showProfileModal && (
             <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50">
               <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl max-w-sm w-full space-y-4 text-xs">
@@ -1118,7 +1236,7 @@
           {selectedBattleForEdit && (
             <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50">
               <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl max-w-sm w-full space-y-4 text-xs">
-                <h3 className="font-bold text-rose-400 text-sm">⚔️ 교체혈전 결과 입력</h3>
+                <h3 className="font-bold text-rose-400 text-sm">⚔️ 교체혈전 결과 입력 & 토토 정산</h3>
                 <p className="text-slate-400">경기: <strong className="text-slate-200">{selectedBattleForEdit.challenger} vs {selectedBattleForEdit.defender}</strong></p>
                 
                 <form onSubmit={handleUpdateBattleResult} className="space-y-3">
@@ -1146,7 +1264,7 @@
                     </select>
                   </div>
 
-                  <button type="submit" className="w-full py-3 bg-rose-600 text-white font-bold rounded-xl">결과 저장 완료</button>
+                  <button type="submit" className="w-full py-3 bg-rose-600 text-white font-bold rounded-xl">결과 확정 및 토토 정산 실행</button>
                 </form>
 
                 <button onClick={() => setSelectedBattleForEdit(null)} className="w-full text-slate-500 text-center">취소</button>
