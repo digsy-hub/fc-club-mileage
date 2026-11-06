@@ -219,9 +219,10 @@
       const [billboardForm, setBillboardForm] = useState({ message: '', color: '#facc15' });
       const [currentBillboardIdx, setCurrentBillboardIdx] = useState(0);
 
-      // ✨ [수정됨] 글자 길이에 비례해 머무는 시간을 동적으로 조절 (최소 7초, 글자당 600ms 추가)
+// ✨ 전광판 문구 길이에 비례해 머무는 시간을 동적으로 조절하는 안전한 타이머
       useEffect(() => {
         if (billboards.length <= 1) return;
+        
         const currentMsg = billboards[currentBillboardIdx]?.message || '';
         const displayDuration = Math.max(7000, currentMsg.length * 600);
 
