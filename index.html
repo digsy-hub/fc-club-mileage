@@ -38,7 +38,7 @@
     .animate-marquee {
       display: inline-block;
       white-space: nowrap;
-      animation: marquee 28s linear infinite;
+      animation: marquee 18s linear infinite;
     }
 
     /* LED 전광판 도트 격자 배경 효과 */
@@ -634,7 +634,7 @@
                     {billboards.length > 0 ? (
                       <div 
                         key={billboards[currentBillboardIdx].id} 
-                        className="animate-marquee font-pixel text-2xl font-bold tracking-widest led-text-glow flex items-center gap-4" 
+                        className="animate-marquee font-pixel text-3xl font-bold tracking-widest led-text-glow flex items-center gap-4" 
                         style={{ color: billboards[currentBillboardIdx].color }}
                       >
                         <span>{billboards[currentBillboardIdx].message}</span>
