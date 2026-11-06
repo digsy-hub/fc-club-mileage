@@ -14,20 +14,21 @@
   <!-- Babel Compiler for JSX -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   
-  <!-- 완벽한 한글 픽셀/도트 폰트 (DNFBitBit / DungGeunMo) 추가 -->
+  <!-- 완벽한 픽셀/도트 폰트 로드 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <link href="https://hangeul.pstatic.net/hangeul_font/css/dunggeunmo.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_20-04@2.1/DNFBitBitv2.woff2" rel="stylesheet">
 
   <style>
     body { margin: 0; padding: 0; background-color: #020617; font-family: 'Pretendard', sans-serif; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     
-    /* 완벽한 도트/픽셀 폰트 적용 (둥근모/던파비트비트) */
+    /* 픽셀 도트 폰트 강제 적용 */
     .font-pixel {
-      font-family: 'DungGeunMo', monospace;
-      letter-spacing: 1px;
+      font-family: 'DungGeunMo', 'Press Start 2P', monospace !important;
+      letter-spacing: 2px;
+      word-break: keep-all;
     }
 
     /* 전광판 슬라이드 애니메이션 (속도 20초) */
@@ -218,13 +219,18 @@
       const [billboardForm, setBillboardForm] = useState({ message: '', color: '#facc15' });
       const [currentBillboardIdx, setCurrentBillboardIdx] = useState(0);
 
+      // ✨ [수정됨] 글자 길이에 비례해 머무는 시간을 동적으로 조절 (최소 7초, 글자당 600ms 추가)
       useEffect(() => {
         if (billboards.length <= 1) return;
-        const interval = setInterval(() => {
+        const currentMsg = billboards[currentBillboardIdx]?.message || '';
+        const displayDuration = Math.max(7000, currentMsg.length * 600);
+
+        const timer = setTimeout(() => {
           setCurrentBillboardIdx(prev => (prev + 1) % billboards.length);
-        }, 7000);
-        return () => clearInterval(interval);
-      }, [billboards]);
+        }, displayDuration);
+
+        return () => clearTimeout(timer);
+      }, [billboards, currentBillboardIdx]);
 
       const [authMode, setAuthMode] = useState('login');
       const [toastMessage, setToastMessage] = useState(null);
@@ -622,7 +628,7 @@
               )}
             </div>
 
-            {/* [완벽한 도트 전광판: 속도 20s, 글씨 크기 text-3xl, 둥근모 도트 폰트 적용] */}
+            {/* [완벽한 도트 전광판: 속도 20s, 글씨 크기 text-3xl, 도트 폰트 및 동적 타이머 적용] */}
             <div className="w-full flex justify-center">
               <div className="w-full max-w-3xl">
                 <div className="led-bg-pattern border-2 border-slate-800 rounded-2xl p-2.5 shadow-2xl relative overflow-hidden flex items-center h-16">
