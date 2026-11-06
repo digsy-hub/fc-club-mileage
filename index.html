@@ -30,7 +30,7 @@
       letter-spacing: 2px;
     }
 
-    /* 전광판 슬라이드 애니메이션 */
+    /* 전광판 슬라이드 애니메이션 (영상의 차분하고 여유 있는 속도 반영: 28초) */
     @keyframes marquee {
       0% { transform: translateX(100%); }
       100% { transform: translateX(-100%); }
@@ -38,7 +38,7 @@
     .animate-marquee {
       display: inline-block;
       white-space: nowrap;
-      animation: marquee 12s linear infinite;
+      animation: marquee 28s linear infinite;
     }
 
     /* LED 전광판 도트 격자 배경 효과 */
@@ -53,7 +53,7 @@
 
     /* 전광판 글자 글로우(발광) 효과 */
     .led-text-glow {
-      text-shadow: 0 0 6px currentColor, 0 0 12px currentColor;
+      text-shadow: 0 0 8px currentColor, 0 0 16px currentColor;
     }
   </style>
 </head>
@@ -222,7 +222,7 @@
         if (billboards.length <= 1) return;
         const interval = setInterval(() => {
           setCurrentBillboardIdx(prev => (prev + 1) % billboards.length);
-        }, 5000);
+        }, 7000);
         return () => clearInterval(interval);
       }, [billboards]);
 
@@ -622,30 +622,32 @@
               )}
             </div>
 
-            {/* [개선된 고정 LED 전광판] 탭 바로 아래 위치 */}
-            <div className="w-full">
-              <div className="led-bg-pattern border-2 border-slate-800 rounded-2xl p-2.5 shadow-2xl relative overflow-hidden flex items-center h-16">
-                <div className="absolute left-3 z-10 bg-slate-950/90 border border-slate-700 px-3 py-1 rounded-xl text-xs font-bold text-amber-400 flex items-center gap-1 shadow-md shrink-0">
-                  <span>💡 LED 전광판</span>
-                </div>
+            {/* [개선된 컴팩트 LED 전광판] 스크린샷 참고하여 양옆 넓이를 줄여 중앙에 배치 */}
+            <div className="w-full flex justify-center">
+              <div className="w-full max-w-3xl">
+                <div className="led-bg-pattern border-2 border-slate-800 rounded-2xl p-2.5 shadow-2xl relative overflow-hidden flex items-center h-16">
+                  <div className="absolute left-3 z-10 bg-slate-950/90 border border-slate-700 px-3 py-1 rounded-xl text-xs font-bold text-amber-400 flex items-center gap-1 shadow-md shrink-0">
+                    <span>💡 전광판</span>
+                  </div>
 
-                <div className="w-full overflow-hidden whitespace-nowrap pl-32 pr-4 flex items-center h-full">
-                  {billboards.length > 0 ? (
-                    <div 
-                      key={billboards[currentBillboardIdx].id} 
-                      className="animate-marquee font-pixel text-2xl font-bold tracking-widest led-text-glow flex items-center gap-4" 
-                      style={{ color: billboards[currentBillboardIdx].color }}
-                    >
-                      <span>{billboards[currentBillboardIdx].message}</span>
-                      <span className="text-xs text-slate-400 font-sans tracking-normal font-normal">
-                        ({billboards[currentBillboardIdx].user_name})
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="text-xs text-slate-500 text-center w-full font-pixel">
-                      등록된 전광판 문구가 없습니다. [전광판 등록 & 관리] 탭에서 문구를 추가해 보세요!
-                    </div>
-                  )}
+                  <div className="w-full overflow-hidden whitespace-nowrap pl-28 pr-4 flex items-center h-full">
+                    {billboards.length > 0 ? (
+                      <div 
+                        key={billboards[currentBillboardIdx].id} 
+                        className="animate-marquee font-pixel text-2xl font-bold tracking-widest led-text-glow flex items-center gap-4" 
+                        style={{ color: billboards[currentBillboardIdx].color }}
+                      >
+                        <span>{billboards[currentBillboardIdx].message}</span>
+                        <span className="text-xs text-slate-400 font-sans tracking-normal font-normal">
+                          ({billboards[currentBillboardIdx].user_name})
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-slate-500 text-center w-full font-pixel">
+                        등록된 전광판 문구가 없습니다. [전광판 등록 & 관리] 탭에서 문구를 추가해 보세요!
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -678,7 +680,7 @@
               </div>
             )}
 
-            {/* [전광판 등록 & 관리 탭 - 도트 폰트 스타일 추가] */}
+            {/* [전광판 등록 & 관리 탭] */}
             {activeTab === 'billboardTab' && (
               <div className="space-y-6 max-w-3xl mx-auto">
                 <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
@@ -718,7 +720,7 @@
                       </div>
                     </div>
 
-                    {/* 실시간 도트 폰트 미리보기 박스 */}
+                    {/* 실시간 미리보기 박스 */}
                     <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 text-center space-y-2">
                       <span className="text-[10px] text-slate-500 font-bold block">전광판 미리보기</span>
                       <div className="py-4 led-bg-pattern rounded-xl border border-slate-800 overflow-hidden">
