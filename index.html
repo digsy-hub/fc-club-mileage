@@ -13,10 +13,24 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <!-- Babel Compiler for JSX -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- 도트/픽셀 폰트 (Galmuri9, Press Start 2P) 추가 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/ungoldman/galmuri/galmuri.css">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
   <style>
-    body { margin: 0; padding: 0; background-color: #020617; }
+    body { margin: 0; padding: 0; background-color: #020617; font-family: 'Pretendard', sans-serif; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    /* 도트 폰트 클래스 */
+    .font-pixel {
+      font-family: 'Galmuri9', 'Press Start 2P', monospace;
+      letter-spacing: 2px;
+    }
+
+    /* 전광판 슬라이드 애니메이션 */
     @keyframes marquee {
       0% { transform: translateX(100%); }
       100% { transform: translateX(-100%); }
@@ -24,7 +38,22 @@
     .animate-marquee {
       display: inline-block;
       white-space: nowrap;
-      animation: marquee 14s linear infinite;
+      animation: marquee 12s linear infinite;
+    }
+
+    /* LED 전광판 도트 격자 배경 효과 */
+    .led-bg-pattern {
+      background-color: #050b14;
+      background-image: 
+        radial-gradient(rgba(255, 255, 255, 0.08) 1.5px, transparent 1.5px),
+        radial-gradient(rgba(0, 0, 0, 0.8) 1.5px, #030712 1.5px);
+      background-size: 6px 6px;
+      background-position: 0 0, 3px 3px;
+    }
+
+    /* 전광판 글자 글로우(발광) 효과 */
+    .led-text-glow {
+      text-shadow: 0 0 6px currentColor, 0 0 12px currentColor;
     }
   </style>
 </head>
@@ -39,15 +68,13 @@
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
     const COLOR_OPTIONS = [
-      { id: 'red', label: '레드', value: '#ef4444' },
-      { id: 'orange', label: '오렌지', value: '#f97316' },
       { id: 'yellow', label: '옐로우', value: '#facc15' },
-      { id: 'lime', label: '라임', value: '#84cc16' },
-      { id: 'emerald', label: '에메랄드', value: '#10b981' },
-      { id: 'cyan', label: '시안', value: '#06b6d4' },
-      { id: 'blue', label: '블루', value: '#3b82f6' },
-      { id: 'purple', label: '퍼플', value: '#a855f7' },
-      { id: 'pink', label: '핑크', value: '#ec4899' },
+      { id: 'cyan', label: '시안', value: '#38bdf8' },
+      { id: 'red', label: '레드', value: '#f87171' },
+      { id: 'green', label: '그린', value: '#4ade80' },
+      { id: 'orange', label: '오렌지', value: '#fb923c' },
+      { id: 'purple', label: '퍼플', value: '#c084fc' },
+      { id: 'pink', label: '핑크', value: '#f472b6' },
       { id: 'white', label: '화이트', value: '#ffffff' }
     ];
 
@@ -188,11 +215,9 @@
       const [betTargetPlayer, setBetTargetPlayer] = useState('');
       const [betAmount, setBetAmount] = useState('');
 
-      // 전광판 등록 폼 상태
       const [billboardForm, setBillboardForm] = useState({ message: '', color: '#facc15' });
       const [currentBillboardIdx, setCurrentBillboardIdx] = useState(0);
 
-      // 전광판 자동 롤링 효과
       useEffect(() => {
         if (billboards.length <= 1) return;
         const interval = setInterval(() => {
@@ -367,7 +392,6 @@
         showToast(`🎯 '${betTargetPlayer}' 선수에게 ${amountNum.toLocaleString()} pt 배팅 완료!`, 'success');
       };
 
-      // 전광판 문구 등록 함수
       const handleBillboardSubmit = async (e) => {
         e.preventDefault();
         if (!currentUser) {
@@ -385,7 +409,6 @@
           return;
         }
 
-        // 기존 등록 내역 확인 (1인당 1개 제한)
         const { error: insError } = await supabase.from('billboards').insert({
           user_id: currentUser.id,
           user_name: currentUser.name,
@@ -583,30 +606,8 @@
             </div>
           </header>
 
-          {/* [전광판 고정 영역] 네비게이션 바 바로 아래 항상 표시 */}
-          <div className="bg-slate-950 border-b border-slate-900 py-3 px-4">
-            <div className="max-w-7xl mx-auto">
-              <div className="bg-slate-900 border-2 border-slate-800 rounded-2xl p-4 shadow-2xl relative overflow-hidden flex items-center">
-                <div className="absolute left-3 z-10 bg-slate-950/90 border border-slate-800 px-2.5 py-1 rounded-xl text-[11px] font-black text-amber-400 flex items-center gap-1 shadow-md">
-                  <span>💡 LED 전광판</span>
-                </div>
-
-                <div className="w-full overflow-hidden whitespace-nowrap pl-24 pr-4 py-1">
-                  {billboards.length > 0 ? (
-                    <div key={billboards[currentBillboardIdx].id} className="animate-marquee text-lg font-black tracking-widest" style={{ color: billboards[currentBillboardIdx].color }}>
-                      {billboards[currentBillboardIdx].message} <span className="text-xs text-slate-500 font-normal ml-3">({billboards[currentBillboardIdx].user_name})</span>
-                    </div>
-                  ) : (
-                    <div className="text-xs text-slate-500 text-center py-1">
-                      등록된 전광판 문구가 없습니다. 아래 탭에서 자유롭게 문구를 등록해 보세요!
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <main className="max-w-7xl mx-auto px-4 pt-6 space-y-6">
+          <main className="max-w-7xl mx-auto px-4 pt-6 space-y-5">
+            {/* 상단 탭 메뉴 */}
             <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-800 no-scrollbar">
               <button onClick={() => setActiveTab('store')} className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold ${activeTab === 'store' ? 'bg-cyan-500 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>🛍️ 마일리지 상점</button>
               <button onClick={() => setActiveTab('battleNotice')} className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold ${activeTab === 'battleNotice' ? 'bg-rose-500 text-slate-950' : 'bg-slate-900 text-slate-400'}`}>⚔️ 교체혈전 & 승부예측 토토</button>
@@ -619,6 +620,34 @@
               {currentUser?.role === 'admin' && (
                 <button onClick={() => setActiveTab('admin')} className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold ${activeTab === 'admin' ? 'bg-purple-600 text-white' : 'bg-slate-900 text-purple-400'}`}>👑 관리자 대시보드</button>
               )}
+            </div>
+
+            {/* [개선된 고정 LED 전광판] 탭 바로 아래 위치 */}
+            <div className="w-full">
+              <div className="led-bg-pattern border-2 border-slate-800 rounded-2xl p-2.5 shadow-2xl relative overflow-hidden flex items-center h-16">
+                <div className="absolute left-3 z-10 bg-slate-950/90 border border-slate-700 px-3 py-1 rounded-xl text-xs font-bold text-amber-400 flex items-center gap-1 shadow-md shrink-0">
+                  <span>💡 LED 전광판</span>
+                </div>
+
+                <div className="w-full overflow-hidden whitespace-nowrap pl-32 pr-4 flex items-center h-full">
+                  {billboards.length > 0 ? (
+                    <div 
+                      key={billboards[currentBillboardIdx].id} 
+                      className="animate-marquee font-pixel text-2xl font-bold tracking-widest led-text-glow flex items-center gap-4" 
+                      style={{ color: billboards[currentBillboardIdx].color }}
+                    >
+                      <span>{billboards[currentBillboardIdx].message}</span>
+                      <span className="text-xs text-slate-400 font-sans tracking-normal font-normal">
+                        ({billboards[currentBillboardIdx].user_name})
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-500 text-center w-full font-pixel">
+                      등록된 전광판 문구가 없습니다. [전광판 등록 & 관리] 탭에서 문구를 추가해 보세요!
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {activeTab === 'store' && (
@@ -649,13 +678,13 @@
               </div>
             )}
 
-            {/* [신규 전광판 등록 & 관리 탭] */}
+            {/* [전광판 등록 & 관리 탭 - 도트 폰트 스타일 추가] */}
             {activeTab === 'billboardTab' && (
               <div className="space-y-6 max-w-3xl mx-auto">
                 <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
                   <div>
-                    <h3 className="font-black text-amber-400 text-base">💡 전광판 문구 등록</h3>
-                    <p className="text-xs text-slate-400 mt-1">포인트 차감 없이 누구나 무료로 상단 LED 전광판에 문구를 띄울 수 있습니다!</p>
+                    <h3 className="font-black text-amber-400 text-base">💡 LED 전광판 문구 등록</h3>
+                    <p className="text-xs text-slate-400 mt-1">포인트 차감 없이 누구나 무료로 상단 LED 전광판에 도트 글꼴 문구를 띄울 수 있습니다!</p>
                   </div>
 
                   <form onSubmit={handleBillboardSubmit} className="space-y-4 text-xs">
@@ -664,11 +693,11 @@
                       <input 
                         type="text" 
                         maxLength="20"
-                        placeholder="예: 우리 클럽 화이팅! (20자 이내)" 
+                        placeholder="예: 범인은 황정민 (20자 이내)" 
                         value={billboardForm.message}
                         onChange={e => setBillboardForm({...billboardForm, message: e.target.value})}
                         required
-                        className="w-full bg-slate-950 border border-slate-800 p-3 rounded-2xl text-slate-100 font-bold"
+                        className="w-full bg-slate-950 border border-slate-800 p-3.5 rounded-2xl text-slate-100 font-pixel text-lg"
                       />
                     </div>
 
@@ -689,11 +718,11 @@
                       </div>
                     </div>
 
-                    {/* 미리보기 박스 */}
+                    {/* 실시간 도트 폰트 미리보기 박스 */}
                     <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 text-center space-y-2">
                       <span className="text-[10px] text-slate-500 font-bold block">전광판 미리보기</span>
-                      <div className="py-3 bg-slate-900 rounded-xl border border-slate-800">
-                        <span className="font-black text-base tracking-widest" style={{ color: billboardForm.color }}>
+                      <div className="py-4 led-bg-pattern rounded-xl border border-slate-800 overflow-hidden">
+                        <span className="font-pixel text-2xl font-bold tracking-widest led-text-glow" style={{ color: billboardForm.color }}>
                           {billboardForm.message || '미리보기 문구입니다'}
                         </span>
                       </div>
@@ -718,7 +747,7 @@
                               <span className="px-2 py-0.5 bg-slate-900 text-slate-400 rounded font-mono text-[10px]">#{idx + 1}</span>
                               <strong className="text-cyan-300 font-bold">{b.user_name}</strong>
                             </div>
-                            <div className="font-black tracking-wide text-sm py-1" style={{ color: b.color }}>
+                            <div className="font-pixel text-xl font-bold tracking-wide py-1 led-text-glow" style={{ color: b.color }}>
                               {b.message}
                             </div>
                           </div>
