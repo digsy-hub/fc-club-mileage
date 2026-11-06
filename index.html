@@ -30,7 +30,7 @@
       letter-spacing: 2px;
     }
 
-    /* 전광판 슬라이드 애니메이션 (영상의 차분하고 여유 있는 속도 반영: 28초) */
+    /* 전광판 슬라이드 애니메이션 (속도 20초 적용) */
     @keyframes marquee {
       0% { transform: translateX(100%); }
       100% { transform: translateX(-100%); }
@@ -38,7 +38,7 @@
     .animate-marquee {
       display: inline-block;
       white-space: nowrap;
-      animation: marquee 18s linear infinite;
+      animation: marquee 20s linear infinite;
     }
 
     /* LED 전광판 도트 격자 배경 효과 */
@@ -622,7 +622,7 @@
               )}
             </div>
 
-            {/* [개선된 컴팩트 LED 전광판] 스크린샷 참고하여 양옆 넓이를 줄여 중앙에 배치 */}
+            {/* [컴팩트 LED 전광판: 속도 20s, 글씨 크기 text-3xl, 도트 폰트 font-pixel 적용 완료] */}
             <div className="w-full flex justify-center">
               <div className="w-full max-w-3xl">
                 <div className="led-bg-pattern border-2 border-slate-800 rounded-2xl p-2.5 shadow-2xl relative overflow-hidden flex items-center h-16">
@@ -680,7 +680,6 @@
               </div>
             )}
 
-            {/* [전광판 등록 & 관리 탭] */}
             {activeTab === 'billboardTab' && (
               <div className="space-y-6 max-w-3xl mx-auto">
                 <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
@@ -724,7 +723,7 @@
                     <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 text-center space-y-2">
                       <span className="text-[10px] text-slate-500 font-bold block">전광판 미리보기</span>
                       <div className="py-4 led-bg-pattern rounded-xl border border-slate-800 overflow-hidden">
-                        <span className="font-pixel text-2xl font-bold tracking-widest led-text-glow" style={{ color: billboardForm.color }}>
+                        <span className="font-pixel text-3xl font-bold tracking-widest led-text-glow" style={{ color: billboardForm.color }}>
                           {billboardForm.message || '미리보기 문구입니다'}
                         </span>
                       </div>
