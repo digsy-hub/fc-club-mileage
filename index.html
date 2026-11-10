@@ -56,6 +56,14 @@
     .led-text-glow {
       text-shadow: 0 0 6px currentColor, 0 0 12px currentColor;
     }
+
+    /* 명예의 전당 고급스러운 골드 그라데이션 효과 */
+    .hall-of-fame-bg {
+      background: radial-gradient(circle at center, #1e1b4b 0%, #090d16 70%, #020617 100%);
+    }
+    .gold-glow {
+      text-shadow: 0 0 15px rgba(251, 191, 36, 0.6), 0 0 30px rgba(245, 158, 11, 0.4);
+    }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100">
@@ -208,6 +216,7 @@
       const [showAddBattleModal, setShowAddBattleModal] = useState(false);
       const [showAuthModal, setShowAuthModal] = useState(false);
       const [showProfileModal, setShowProfileModal] = useState(false);
+      const [showHallOfFameModal, setShowHallOfFameModal] = useState(false); // ✨ 명예의 전당 모달 상태
       
       const [selectedBattleForEdit, setSelectedBattleForEdit] = useState(null);
       const [battleResultForm, setBattleResultForm] = useState({ winner: '', loser: '' });
@@ -473,7 +482,7 @@
         const { error } = await supabase.from('transactions').delete().eq('id', logId);
         if (error) { showToast('로그 삭제 실패: ' + error.message, 'error'); return; }
         await refreshData();
-        showToast('활동 로그가 삭제되었습니다.', 'success');
+        showToast('활동 로그가 삭제되었습니다.', 'info');
       };
 
       const handleUpdateBattleResult = async (e) => {
@@ -563,7 +572,15 @@
               <div>
                 {currentUser ? (
                   <div className="flex items-center gap-3">
-                    {/* 1. 출석체크 버튼 (오른쪽으로 한 칸 이동) */}
+                    {/* ✨ 2026 명예의 전당 버튼 (출석체크 왼쪽) */}
+                    <button 
+                      onClick={() => setShowHallOfFameModal(true)}
+                      className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 text-slate-950 font-black text-xs hover:brightness-110 shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition-all"
+                    >
+                      <span>🏆</span> 2026 명예의 전당
+                    </button>
+
+                    {/* 출석체크 버튼 */}
                     <button 
                       onClick={handleDailyCheckIn}
                       className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs hover:brightness-110 shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition-all"
@@ -571,7 +588,7 @@
                       <span>📅</span> 출석체크 (+100pt)
                     </button>
 
-                    {/* 2. 클릭 시 프로필 설정 모달이 열리는 프로필 카드 (기존 '프로필 설정' 버튼 삭제하여 공간 확보) */}
+                    {/* 프로필 카드 (클릭 시 프로필 설정) */}
                     <div 
                       onClick={() => {
                         setProfileForm({
@@ -606,7 +623,14 @@
                     <button onClick={handleLogout} className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700">로그아웃</button>
                   </div>
                 ) : (
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-3">
+                    {/* 로그아웃 상태에서도 명예의 전당 확인 가능 */}
+                    <button 
+                      onClick={() => setShowHallOfFameModal(true)}
+                      className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 text-slate-950 font-black text-xs hover:brightness-110 shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition-all"
+                    >
+                      <span>🏆</span> 2026 명예의 전당
+                    </button>
                     <button onClick={() => { setAuthMode('login'); setShowAuthModal(true); }} className="px-3 py-2 rounded-xl bg-slate-800 text-slate-200 font-bold text-xs">로그인</button>
                     <button onClick={() => { setAuthMode('signup'); setShowAuthModal(true); }} className="px-3 py-2 rounded-xl bg-cyan-500 text-slate-950 font-black text-xs">회원가입 (+1000pt)</button>
                   </div>
@@ -1396,6 +1420,81 @@
               </div>
             )}
           </main>
+
+          {/* ✨ 2026 명예의 전당 프리미엄 모달 */}
+          {showHallOfFameModal && (
+            <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50">
+              <div className="hall-of-fame-bg border-2 border-amber-500/50 p-8 rounded-3xl max-w-2xl w-full space-y-8 shadow-2xl shadow-amber-500/10 text-center relative overflow-hidden">
+                {/* 배경 장식 광채 효과 */}
+                <div className="absolute -top-24 -left-24 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-yellow-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                <div className="space-y-2 relative z-10">
+                  <span className="text-xs font-mono tracking-widest text-amber-400 uppercase">FC CLUB MILEAGE STORE</span>
+                  <h2 className="text-2xl md:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500 gold-glow">
+                    🏆 2026 명예의 전당 (HALL OF FAME)
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    2026년 한 해 동안 남자는 싸커지와 함께 달려온 최상위 전설들을 기념합니다.
+                  </p>
+                </div>
+
+                {/* 0티어 ~ 2티어 상위 회원 기념 구역 (아이템 사용 전이므로 현재는 우아한 공백 상태) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
+                  {/* 1티어 (오른쪽/시작점 혹은 2등) */}
+                  <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-3 flex flex-col items-center justify-between">
+                    <span className="px-3 py-1 rounded-full bg-slate-800 text-slate-300 font-bold text-xs border border-slate-700">
+                      🥈 1티어 전설
+                    </span>
+                    <div className="w-16 h-16 rounded-full bg-slate-950 border border-slate-800 flex items-center justify-center text-2xl text-slate-600">
+                      ?
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-bold text-slate-400 text-sm">12월 4주차 선정 예정</div>
+                      <span className="text-[10px] text-slate-600 block">준비 중</span>
+                    </div>
+                  </div>
+
+                  {/* 0티어 (가장 영예로운 중앙/1등) */}
+                  <div className="bg-gradient-to-b from-amber-950/40 via-slate-900/90 to-slate-900 border-2 border-amber-500/60 rounded-2xl p-6 space-y-3 flex flex-col items-center justify-between shadow-xl shadow-amber-500/10 scale-105">
+                    <span className="px-3.5 py-1 rounded-full bg-amber-500 text-slate-950 font-black text-xs shadow-md">
+                      👑 0티어 최강자
+                    </span>
+                    <div className="w-20 h-20 rounded-full bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center text-3xl text-amber-300 animate-pulse">
+                      🏆
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-black text-amber-300 text-base">영광의 주인공</div>
+                      <span className="text-[10px] text-amber-500/80 block">12월 4주차 아이템 사용 후 등극</span>
+                    </div>
+                  </div>
+
+                  {/* 2티어 */}
+                  <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-3 flex flex-col items-center justify-between">
+                    <span className="px-3 py-1 rounded-full bg-slate-800 text-amber-700/80 font-bold text-xs border border-amber-900/50">
+                      🥉 2티어 전설
+                    </span>
+                    <div className="w-16 h-16 rounded-full bg-slate-950 border border-slate-800 flex items-center justify-center text-2xl text-slate-600">
+                      ?
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-bold text-slate-400 text-sm">12월 4주차 선정 예정</div>
+                      <span className="text-[10px] text-slate-600 block">준비 중</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-2 relative z-10">
+                  <button 
+                    onClick={() => setShowHallOfFameModal(false)}
+                    className="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black rounded-xl text-xs hover:brightness-110 shadow-lg shadow-amber-500/20"
+                  >
+                    확인 및 닫기
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* 토토 배팅 모달 */}
           {selectedBattleForBet && currentUser && (
