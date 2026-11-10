@@ -87,6 +87,20 @@
       { id: 'white', label: '화이트', value: '#ffffff' }
     ];
 
+    // 기본 상품에 '명예의 전당 등록권' 포함
+    const DEFAULT_PRODUCTS = [
+      {
+        id: 99,
+        title: '🏆 명예의 전당 등록권',
+        category: '대외활동',
+        price: 5000,
+        stock: 99,
+        icon: '🏆',
+        description: '2티어 이상 사용 가능 / 12월 4주차 구매 및 사용 가능. 12월 4주차 최종 티어를 기반으로 2026 명예의 전당에 전설로 수기 등재됩니다.',
+        tag: '12월 4주차'
+      }
+    ];
+
     function App() {
       const [users, setUsers] = useState([]);
       const [currentUser, setCurrentUser] = useState(null);
@@ -177,8 +191,17 @@
         ]);
         const err = pr.error || ur.error || tr.error || br.error || ber.error || bir.error;
         if (err) showToast('데이터 불러오기 실패: ' + err.message, 'error');
-        setItems((pr.data||[]).map(mapProduct)); setUsers((ur.data||[]).map(mapProfile));
-        setTransactions((tr.data||[]).map(mapTransaction)); setBattles((br.data||[]).map(mapBattle));
+        
+        let fetchedProducts = (pr.data||[]).map(mapProduct);
+        // 만약 명예의 전당 등록권이 DB에 없으면 UI 목록에 결합하여 표시
+        if (!fetchedProducts.some(p => p.title.includes('명예의 전당'))) {
+          fetchedProducts = [...DEFAULT_PRODUCTS, ...fetchedProducts];
+        }
+        
+        setItems(fetchedProducts); 
+        setUsers((ur.data||[]).map(mapProfile));
+        setTransactions((tr.data||[]).map(mapTransaction)); 
+        setBattles((br.data||[]).map(mapBattle));
         setBets(ber.data || []);
         setBillboards(bir.data || []);
         setLoadingData(false);
@@ -212,11 +235,16 @@
       const [selectedItemForPurchase, setSelectedItemForPurchase] = useState(null);
       const [selectedItemForUse, setSelectedItemForUse] = useState(null);
       const [targetUserForUse, setTargetUserForUse] = useState('');
+      
+      // ✨ 명예의 전당 등록권 입력 폼 전용 상태
+      const [hofPlayersInput, setHofPlayersInput] = useState('');
+      const [hofAchievementsInput, setHofAchievementsInput] = useState('');
+
       const [showAddItemModal, setShowAddItemModal] = useState(false);
       const [showAddBattleModal, setShowAddBattleModal] = useState(false);
       const [showAuthModal, setShowAuthModal] = useState(false);
       const [showProfileModal, setShowProfileModal] = useState(false);
-      const [showHallOfFameModal, setShowHallOfFameModal] = useState(false); // ✨ 명예의 전당 모달 상태
+      const [showHallOfFameModal, setShowHallOfFameModal] = useState(false);
       
       const [selectedBattleForEdit, setSelectedBattleForEdit] = useState(null);
       const [battleResultForm, setBattleResultForm] = useState({ winner: '', loser: '' });
@@ -454,6 +482,13 @@
 
       const handlePurchase = async () => {
         if (!selectedItemForPurchase || !currentUser) return;
+
+        // ✨ 명예의 전당 구매 기간 안내 검증
+        if (selectedItemForPurchase.title.includes('명예의 전당')) {
+          const confirmMsg = "⚠️ [명예의 전당 등록권 안내]\n• 2티어 이상부터 사용 가능합니다.\n• 12월 4주차부터 구매 및 사용이 가능하며, 12월 4주차 최종 티어를 기반으로 제작됩니다.\n\n구매를 진행하시겠습니까?";
+          if (!confirm(confirmMsg)) return;
+        }
+
         const { error } = await supabase.rpc('purchase_product', { p_product_id: selectedItemForPurchase.id });
         if (error) { showToast('구매 실패: ' + error.message, 'error'); return; }
         setSelectedItemForPurchase(null); await refreshData(); await loadCurrentProfile(currentUser.id); showToast(`'${selectedItemForPurchase.title}' 구매 완료!`, 'success');
@@ -462,11 +497,34 @@
       const handleUseItem = async () => {
         if (!selectedItemForUse || !currentUser) return;
         const tx = selectedItemForUse;
+        const isHofTicket = tx.itemTitle.includes('명예의 전당');
         const needsTarget = tx.itemTitle.includes('신청권') || tx.itemTitle.includes('공격권') || tx.itemTitle.includes('방어권');
+
         if (needsTarget && !targetUserForUse) { showToast('사용 대상을 선택해 주세요.', 'error'); return; }
-        const { error } = await supabase.rpc('use_purchased_item', { p_transaction_id: tx.id, p_target: targetUserForUse || null });
+
+        let useTargetString = targetUserForUse || null;
+        if (isHofTicket) {
+          if (!hofPlayersInput.trim() || !hofAchievementsInput.trim()) {
+            showToast('주요 선수와 주요 업적을 모두 기록해 주세요.', 'error');
+            return;
+          }
+          // 관리자가 읽을 수 있도록 타겟 텍스트 포맷에 수기 정보 기록
+          useTargetString = `[주요선수: ${hofPlayersInput.trim()}] | [업적: ${hofAchievementsInput.trim()}]`;
+        }
+
+        const { error } = await supabase.rpc('use_purchased_item', { 
+          p_transaction_id: tx.id, 
+          p_target: useTargetString 
+        });
+
         if (error) { showToast('아이템 사용 실패: ' + error.message, 'error'); return; }
-        setSelectedItemForUse(null); setTargetUserForUse(''); await refreshData(); showToast('아이템 사용 완료!', 'success');
+        
+        setSelectedItemForUse(null); 
+        setTargetUserForUse('');
+        setHofPlayersInput('');
+        setHofAchievementsInput('');
+        await refreshData(); 
+        showToast('🏆 명예의 전당 등록 신청 및 아이템 사용이 완료되었습니다! 관리자가 확인 후 수기 제작을 진행합니다.', 'success');
       };
 
       const handleDeleteUser = async (targetUserId, targetUserName) => {
@@ -572,7 +630,7 @@
               <div>
                 {currentUser ? (
                   <div className="flex items-center gap-3">
-                    {/* ✨ 2026 명예의 전당 버튼 (출석체크 왼쪽) */}
+                    {/* 2026 명예의 전당 버튼 */}
                     <button 
                       onClick={() => setShowHallOfFameModal(true)}
                       className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 text-slate-950 font-black text-xs hover:brightness-110 shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition-all"
@@ -588,7 +646,7 @@
                       <span>📅</span> 출석체크 (+100pt)
                     </button>
 
-                    {/* 프로필 카드 (클릭 시 프로필 설정) */}
+                    {/* 프로필 카드 */}
                     <div 
                       onClick={() => {
                         setProfileForm({
@@ -624,7 +682,6 @@
                   </div>
                 ) : (
                   <div className="flex items-center gap-3">
-                    {/* 로그아웃 상태에서도 명예의 전당 확인 가능 */}
                     <button 
                       onClick={() => setShowHallOfFameModal(true)}
                       className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 text-slate-950 font-black text-xs hover:brightness-110 shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition-all"
@@ -697,11 +754,16 @@
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {filteredItems.map(item => (
-                    <div key={item.id} className="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between">
+                    <div key={item.id} className="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between relative overflow-hidden">
+                      {item.tag && (
+                        <span className="absolute top-4 right-4 px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 font-extrabold text-[10px]">
+                          {item.tag}
+                        </span>
+                      )}
                       <div>
                         <div className="text-3xl mb-3">{item.icon}</div>
                         <h3 className="font-extrabold text-slate-100">{item.title}</h3>
-                        <p className="text-xs text-slate-400 mt-2">{item.description}</p>
+                        <p className="text-xs text-slate-400 mt-2 leading-relaxed">{item.description}</p>
                       </div>
                       <div className="mt-6 pt-4 border-t border-slate-800 flex justify-between items-center">
                         <span className="text-cyan-400 font-bold font-mono">{item.price.toLocaleString()} pt</span>
@@ -1060,39 +1122,57 @@
                       t.userName === currentUser.name ||
                       t.userName === currentUser.username
                     );
+                    const isHofLog = t.itemTitle.includes('명예의 전당');
+
                     return (
-                      <div key={t.id} className={`p-3.5 rounded-2xl text-xs flex justify-between items-center transition-all ${
-                        isMyLog 
-                          ? 'bg-cyan-950/70 border-2 border-cyan-400 shadow-lg shadow-cyan-500/20 my-1' 
-                          : 'bg-slate-950 border border-slate-800/80'
+                      <div key={t.id} className={`p-4 rounded-2xl text-xs space-y-2 transition-all ${
+                        isHofLog 
+                          ? 'bg-amber-950/40 border-2 border-amber-500/80 shadow-lg shadow-amber-500/10' 
+                          : isMyLog 
+                            ? 'bg-cyan-950/70 border-2 border-cyan-400 shadow-lg shadow-cyan-500/20' 
+                            : 'bg-slate-950 border border-slate-800/80'
                       }`}>
-                        <div className="flex items-center gap-2.5">
-                          {isMyLog && (
-                            <span className="px-2 py-0.5 rounded-lg bg-cyan-400 text-slate-950 font-black text-[10px] animate-pulse">
-                              내 활동
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2.5">
+                            {isHofLog && (
+                              <span className="px-2 py-0.5 rounded-lg bg-amber-500 text-slate-950 font-black text-[10px]">
+                                🏆 명예의 전당 수기신청
+                              </span>
+                            )}
+                            {isMyLog && !isHofLog && (
+                              <span className="px-2 py-0.5 rounded-lg bg-cyan-400 text-slate-950 font-black text-[10px] animate-pulse">
+                                내 활동
+                              </span>
+                            )}
+                            <span>
+                              <strong className={isHofLog ? 'text-amber-300 font-black text-sm' : isMyLog ? 'text-cyan-300 font-black text-sm' : 'text-cyan-400 font-bold'}>
+                                {t.userName}
+                              </strong> 
+                              <span className={isMyLog || isHofLog ? 'text-slate-100 font-semibold' : 'text-slate-300'}>
+                                 님이 [{t.itemTitle}] 사용 완료
+                              </span>
                             </span>
-                          )}
-                          <span>
-                            <strong className={isMyLog ? 'text-cyan-300 font-black text-sm underline underline-offset-4 decoration-cyan-400' : 'text-cyan-400 font-bold'}>
-                              {t.userName}
-                            </strong> 
-                            <span className={isMyLog ? 'text-slate-100 font-semibold' : 'text-slate-300'}>
-                               님이 [{t.itemTitle}] 사용 완료 (대상: {t.usedTarget || '없음'})
-                            </span>
-                          </span>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span className="text-slate-400 font-mono text-[11px]">{t.useDate}</span>
+                            {currentUser?.role === 'admin' && (
+                              <button 
+                                onClick={() => handleDeleteLog(t.id)}
+                                className="px-2 py-0.5 rounded bg-rose-950 text-rose-300 hover:bg-rose-900 text-[10px] font-bold border border-rose-800"
+                              >
+                                삭제
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        
-                        <div className="flex items-center gap-3">
-                          <span className="text-slate-400 font-mono text-[11px]">{t.useDate}</span>
-                          {currentUser?.role === 'admin' && (
-                            <button 
-                              onClick={() => handleDeleteLog(t.id)}
-                              className="px-2 py-0.5 rounded bg-rose-950 text-rose-300 hover:bg-rose-900 text-[10px] font-bold border border-rose-800"
-                            >
-                              삭제
-                            </button>
-                          )}
-                        </div>
+
+                        {/* 수기 입력을 사용자가 한 경우 세부 정보 표시 */}
+                        {t.usedTarget && (
+                          <div className="p-2.5 bg-slate-900/90 rounded-xl border border-slate-800 text-slate-300 font-mono text-[11px]">
+                            {t.usedTarget}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -1145,9 +1225,11 @@
                       ) : (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           {myPurchasedItems.map(item => (
-                            <div key={item.id} className="p-4 bg-slate-950 rounded-2xl border border-slate-800">
-                              <h4 className="font-bold text-slate-200">{item.itemTitle}</h4>
-                              <button onClick={() => setSelectedItemForUse(item)} disabled={item.used} className={`w-full mt-4 py-2 rounded-xl text-xs font-bold ${item.used ? 'bg-slate-800 text-slate-500' : 'bg-amber-400 text-slate-950'}`}>
+                            <div key={item.id} className="p-4 bg-slate-950 rounded-2xl border border-slate-800 flex flex-col justify-between">
+                              <div>
+                                <h4 className="font-bold text-slate-200">{item.itemTitle}</h4>
+                              </div>
+                              <button onClick={() => setSelectedItemForUse(item)} disabled={item.used} className={`w-full mt-4 py-2 rounded-xl text-xs font-bold ${item.used ? 'bg-slate-800 text-slate-500' : 'bg-amber-400 text-slate-950 hover:brightness-110'}`}>
                                 {item.used ? '사용 완료됨' : '⚡ 사용하기'}
                               </button>
                             </div>
@@ -1247,6 +1329,30 @@
 
             {activeTab === 'admin' && currentUser?.role === 'admin' && (
               <div className="space-y-6">
+                {/* ✨ 명예의 전당 등록권 제출 내역 확인 섹션 (관리자용) */}
+                <div className="bg-slate-900 border-2 border-amber-500/50 p-6 rounded-3xl space-y-4 shadow-xl">
+                  <h3 className="font-black text-amber-400 text-sm flex items-center gap-2">
+                    <span>🏆</span> 명예의 전당 신청자 작성 내역 (수기 제작용)
+                  </h3>
+                  <div className="space-y-3">
+                    {transactions.filter(t => t.used && t.itemTitle.includes('명예의 전당')).length === 0 ? (
+                      <p className="text-xs text-slate-500">현재 명예의 전당 등록권을 사용한 신청 내역이 없습니다.</p>
+                    ) : (
+                      transactions.filter(t => t.used && t.itemTitle.includes('명예의 전당')).map(t => (
+                        <div key={t.id} className="p-4 bg-slate-950 rounded-2xl border border-amber-500/30 text-xs space-y-2">
+                          <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                            <strong className="text-amber-300 font-black text-sm">{t.userName} 클럽원</strong>
+                            <span className="text-slate-500 font-mono text-[10px]">{t.useDate}</span>
+                          </div>
+                          <div className="text-slate-200 leading-relaxed font-mono bg-slate-900 p-3 rounded-xl border border-slate-800">
+                            {t.usedTarget || '기록된 정보가 없습니다.'}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
                 <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 space-y-4">
                   <h3 className="font-bold text-purple-400">👑 관리자 제어판</h3>
                   <div className="flex gap-4">
@@ -1421,11 +1527,10 @@
             )}
           </main>
 
-          {/* ✨ 2026 명예의 전당 프리미엄 모달 */}
+          {/* 2026 명예의 전당 프리미엄 모달 */}
           {showHallOfFameModal && (
             <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50">
               <div className="hall-of-fame-bg border-2 border-amber-500/50 p-8 rounded-3xl max-w-2xl w-full space-y-8 shadow-2xl shadow-amber-500/10 text-center relative overflow-hidden">
-                {/* 배경 장식 광채 효과 */}
                 <div className="absolute -top-24 -left-24 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
                 <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-yellow-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -1439,9 +1544,7 @@
                   </p>
                 </div>
 
-                {/* 0티어 ~ 2티어 상위 회원 기념 구역 (아이템 사용 전이므로 현재는 우아한 공백 상태) */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
-                  {/* 1티어 (오른쪽/시작점 혹은 2등) */}
                   <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-3 flex flex-col items-center justify-between">
                     <span className="px-3 py-1 rounded-full bg-slate-800 text-slate-300 font-bold text-xs border border-slate-700">
                       🥈 1티어 전설
@@ -1455,7 +1558,6 @@
                     </div>
                   </div>
 
-                  {/* 0티어 (가장 영예로운 중앙/1등) */}
                   <div className="bg-gradient-to-b from-amber-950/40 via-slate-900/90 to-slate-900 border-2 border-amber-500/60 rounded-2xl p-6 space-y-3 flex flex-col items-center justify-between shadow-xl shadow-amber-500/10 scale-105">
                     <span className="px-3.5 py-1 rounded-full bg-amber-500 text-slate-950 font-black text-xs shadow-md">
                       👑 0티어 최강자
@@ -1469,7 +1571,6 @@
                     </div>
                   </div>
 
-                  {/* 2티어 */}
                   <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-3 flex flex-col items-center justify-between">
                     <span className="px-3 py-1 rounded-full bg-slate-800 text-amber-700/80 font-bold text-xs border border-amber-900/50">
                       🥉 2티어 전설
@@ -1492,6 +1593,75 @@
                     확인 및 닫기
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* USE ITEM MODAL */}
+          {selectedItemForUse && (
+            <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50">
+              <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl max-w-sm w-full space-y-4 text-xs">
+                <h3 className="font-bold text-amber-400 text-sm">{selectedItemForUse.itemTitle} 사용</h3>
+                
+                {/* ✨ 명예의 전당 등록권 사용 시 수기 작성 폼 */}
+                {selectedItemForUse.itemTitle.includes('명예의 전당') ? (
+                  <div className="space-y-3 text-left">
+                    <div className="p-3 bg-slate-950 rounded-xl border border-amber-500/30 text-[11px] text-amber-300">
+                      👑 <strong>12월 4주차 최종 티어</strong> 기반으로 제작됩니다.<br/>아래 정보를 입력하시면 관리자가 확인 후 수기 제작을 진행합니다.
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 mb-1 font-bold">주요 선수 (현/전직 선수 포함)</label>
+                      <input 
+                        type="text" 
+                        placeholder="예: 10-11 레알 마드리드 라인업, 호날두, 카카"
+                        value={hofPlayersInput}
+                        onChange={e => setHofPlayersInput(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-slate-100"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 mb-1 font-bold">2026 주요 업적</label>
+                      <textarea 
+                        rows="3"
+                        placeholder="예: 교체혈전 3연승 달성, 토토 마일리지 대박 성공"
+                        value={hofAchievementsInput}
+                        onChange={e => setHofAchievementsInput(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-slate-100"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {(selectedItemForUse.itemTitle.includes('신청권') || selectedItemForUse.itemTitle.includes('공격권')) && (
+                      <select value={targetUserForUse} onChange={(e) => setTargetUserForUse(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-slate-100">
+                        <option value="">-- 대상 선택 --</option>
+                        {users.filter(u => u.id !== currentUser?.id).map(u => (
+                          <option key={u.id} value={u.name}>{u.name}</option>
+                        ))}
+                      </select>
+                    )}
+
+                    {selectedItemForUse.itemTitle.includes('방어권') && (
+                      <select value={targetUserForUse} onChange={(e) => setTargetUserForUse(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-slate-100">
+                        <option value="">-- 나를 지목한 공격자 선택 --</option>
+                        {getAttackersTargetingMe().length > 0 ? (
+                          getAttackersTargetingMe().map(name => (
+                            <option key={name} value={name}>{name}</option>
+                          ))
+                        ) : (
+                          <option value="" disabled>현재 나를 공격한 회원이 없습니다</option>
+                        )}
+                      </select>
+                    )}
+                  </>
+                )}
+                
+                <button onClick={handleUseItem} className="w-full py-3 bg-amber-400 text-slate-950 font-bold rounded-xl shadow-lg shadow-amber-400/20">
+                  ⚡ 아이템 사용 및 제출
+                </button>
+                <button onClick={() => { setSelectedItemForUse(null); setTargetUserForUse(''); setHofPlayersInput(''); setHofAchievementsInput(''); }} className="w-full text-slate-500 text-center">취소</button>
               </div>
             </div>
           )}
@@ -1704,45 +1874,16 @@
           {/* PURCHASE MODAL */}
           {selectedItemForPurchase && currentUser && (
             <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50">
-              <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl max-w-sm w-full space-y-4">
+              <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl max-w-sm w-full space-y-4 text-xs">
                 <h3 className="font-bold text-slate-100">{selectedItemForPurchase.title} 구매</h3>
-                <p className="text-xs text-slate-400">차감 마일리지: {selectedItemForPurchase.price} pt</p>
-                <button onClick={handlePurchase} className="w-full py-3 bg-cyan-500 text-slate-950 font-bold rounded-xl text-xs">구매 확정</button>
-                <button onClick={() => setSelectedItemForPurchase(null)} className="w-full text-xs text-slate-500">취소</button>
-              </div>
-            </div>
-          )}
-
-          {/* USE ITEM MODAL */}
-          {selectedItemForUse && (
-            <div className="fixed inset-0 bg-slate-950/80 flex items-center justify-center p-4 z-50">
-              <div className="bg-slate-900 border border-slate-800 p-6 rounded-3xl max-w-sm w-full space-y-4">
-                <h3 className="font-bold text-slate-100">{selectedItemForUse.itemTitle} 사용</h3>
-                
-                {(selectedItemForUse.itemTitle.includes('신청권') || selectedItemForUse.itemTitle.includes('공격권')) && (
-                  <select value={targetUserForUse} onChange={(e) => setTargetUserForUse(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-slate-100">
-                    <option value="">-- 대상 선택 --</option>
-                    {users.filter(u => u.id !== currentUser?.id).map(u => (
-                      <option key={u.id} value={u.name}>{u.name}</option>
-                    ))}
-                  </select>
+                <p className="text-slate-400">차감 마일리지: <strong className="text-cyan-400">{selectedItemForPurchase.price.toLocaleString()} pt</strong></p>
+                {selectedItemForPurchase.title.includes('명예의 전당') && (
+                  <div className="p-3 bg-amber-950/50 border border-amber-500/40 rounded-xl text-amber-200 text-[11px] leading-relaxed">
+                    📌 <strong>안내:</strong> 2티어 이상부터 사용 가능하며, 12월 4주차부터 구매 및 사용이 진행됩니다.
+                  </div>
                 )}
-
-                {selectedItemForUse.itemTitle.includes('방어권') && (
-                  <select value={targetUserForUse} onChange={(e) => setTargetUserForUse(e.target.value)} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs text-slate-100">
-                    <option value="">-- 나를 지목한 공격자 선택 --</option>
-                    {getAttackersTargetingMe().length > 0 ? (
-                      getAttackersTargetingMe().map(name => (
-                        <option key={name} value={name}>{name}</option>
-                      ))
-                    ) : (
-                      <option value="" disabled>현재 나를 공격한 회원이 없습니다</option>
-                    )}
-                  </select>
-                )}
-                
-                <button onClick={handleUseItem} className="w-full py-3 bg-amber-400 text-slate-950 font-bold rounded-xl text-xs">⚡ 아이템 사용하기</button>
-                <button onClick={() => { setSelectedItemForUse(null); setTargetUserForUse(''); }} className="w-full text-xs text-slate-500">취소</button>
+                <button onClick={handlePurchase} className="w-full py-3 bg-cyan-500 text-slate-950 font-bold rounded-xl text-xs hover:brightness-110">구매 확정</button>
+                <button onClick={() => setSelectedItemForPurchase(null)} className="w-full text-xs text-slate-500 text-center">취소</button>
               </div>
             </div>
           )}
@@ -1764,7 +1905,7 @@
                   <textarea placeholder="설명" value={newItemForm.description} onChange={e => setNewItemForm({...newItemForm, description: e.target.value})} className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl" />
                   <button type="submit" className="w-full py-3 bg-purple-600 text-white font-bold rounded-xl">상품 추가</button>
                 </form>
-                <button onClick={() => setShowAddItemModal(false)} className="w-full text-slate-500">취소</button>
+                <button onClick={() => setShowAddItemModal(false)} className="w-full text-slate-500 text-center">취소</button>
               </div>
             </div>
           )}
